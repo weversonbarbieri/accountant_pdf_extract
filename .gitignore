@@ -1,0 +1,11 @@
+# Arquivos de texto
+*.txt
+
+# Diretórios de saída
+excel_output/
+csv_output/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
