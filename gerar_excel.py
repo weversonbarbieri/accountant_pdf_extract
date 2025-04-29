@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Tuple
 from collections import defaultdict
 from analisar_json import AnalisadorJSON
 import glob
-
+import numpy as np
 class GeradorExcel:
     def __init__(self, arquivo_json: str):
         self.arquivo_json = arquivo_json
