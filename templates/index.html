@@ -15,78 +15,148 @@
         </header>
         
         <main>
-            <div class="card">
-                <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
-                <div class="dropzone" id="drop-area">
-                    <div class="dropzone-content">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Arraste e solte arquivos JSON aqui</p>
-                        <span>ou</span>
-                        <label for="file-upload" class="btn primary">Selecionar arquivos</label>
-                        <input type="file" id="file-upload" multiple accept=".json" hidden>
-                    </div>
-                    <div class="file-preview" id="file-preview">
-                        <!-- Arquivos selecionados serão mostrados aqui -->
-                    </div>
-                </div>
-                <div class="upload-controls">
-                    <button id="upload-button" class="btn primary">
-                        <i class="fas fa-upload"></i> Enviar arquivos
-                    </button>
-                    <button id="clear-button" class="btn secondary">
-                        <i class="fas fa-trash"></i> Limpar seleção
-                    </button>
-                </div>
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="json-tab">
+                    <i class="fas fa-file-code"></i> Arquivos JSON
+                </button>
+                <button class="tab-btn" data-tab="pdf-tab">
+                    <i class="fas fa-file-pdf"></i> Extrair texto de PDF
+                </button>
             </div>
             
-            <div class="card">
-                <h2><i class="fas fa-list"></i> Arquivos disponíveis</h2>
-                <div class="file-list">
-                    <div class="file-list-header">
-                        <div class="file-select-all">
-                            <input type="checkbox" id="select-all">
-                            <label for="select-all">Selecionar todos</label>
+            <!-- Tab de processamento JSON -->
+            <div id="json-tab" class="tab-content active">
+                <div class="card">
+                    <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
+                    <div class="dropzone" id="drop-area">
+                        <div class="dropzone-content">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Arraste e solte arquivos JSON aqui</p>
+                            <span>ou</span>
+                            <label for="file-upload" class="btn primary">Selecionar arquivos</label>
+                            <input type="file" id="file-upload" multiple accept=".json" hidden>
                         </div>
-                        <div class="file-name-header">Nome do arquivo</div>
-                        <div class="file-actions-header">Ações</div>
+                        <div class="file-preview" id="file-preview">
+                            <!-- Arquivos selecionados serão mostrados aqui -->
+                        </div>
                     </div>
-                    <div id="files">
-                    {% if arquivos_json %}
-                        {% for arquivo in arquivos_json %}
-                        <div class="file-item">
-                            <input type="checkbox" id="file-{{ loop.index }}" class="file-checkbox" data-filename="{{ arquivo }}">
-                            <label for="file-{{ loop.index }}" class="file-label">{{ arquivo }}</label>
-                            <div class="file-actions">
-                                <button class="btn-icon delete-file" data-filename="{{ arquivo }}" title="Excluir arquivo">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="no-files">Nenhum arquivo JSON encontrado no diretório.</p>
-                    {% endif %}
+                    <div class="upload-controls">
+                        <button id="upload-button" class="btn primary">
+                            <i class="fas fa-upload"></i> Enviar arquivos
+                        </button>
+                        <button id="clear-button" class="btn secondary">
+                            <i class="fas fa-trash"></i> Limpar seleção
+                        </button>
                     </div>
                 </div>
                 
-                <div class="actions">
-                    <button id="process-button" class="btn primary">
-                        <i class="fas fa-cogs"></i> Processar arquivos selecionados
-                    </button>
-                    <button id="refresh-button" class="btn secondary">
-                        <i class="fas fa-sync-alt"></i> Atualizar lista
-                    </button>
+                <div class="card">
+                    <h2><i class="fas fa-list"></i> Arquivos disponíveis</h2>
+                    <div class="file-list">
+                        <div class="file-list-header">
+                            <div class="file-select-all">
+                                <input type="checkbox" id="select-all">
+                                <label for="select-all">Selecionar todos</label>
+                            </div>
+                            <div class="file-name-header">Nome do arquivo</div>
+                            <div class="file-actions-header">Ações</div>
+                        </div>
+                        <div id="files">
+                        {% if arquivos_json %}
+                            {% for arquivo in arquivos_json %}
+                            <div class="file-item">
+                                <input type="checkbox" id="file-{{ loop.index }}" class="file-checkbox" data-filename="{{ arquivo }}">
+                                <label for="file-{{ loop.index }}" class="file-label">{{ arquivo }}</label>
+                                <div class="file-actions">
+                                    <button class="btn-icon delete-file" data-filename="{{ arquivo }}" title="Excluir arquivo">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="no-files">Nenhum arquivo JSON encontrado no diretório.</p>
+                        {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button id="process-button" class="btn primary">
+                            <i class="fas fa-cogs"></i> Processar arquivos selecionados
+                        </button>
+                        <button id="refresh-button" class="btn secondary">
+                            <i class="fas fa-sync-alt"></i> Atualizar lista
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card results-card">
+                    <h2><i class="fas fa-clipboard-list"></i> Resultados</h2>
+                    <div id="processing-indicator" class="hidden">
+                        <div class="spinner"></div>
+                        <p>Processando arquivos, por favor aguarde...</p>
+                    </div>
+                    <div id="results">
+                        <p class="no-results">Nenhum resultado ainda. Selecione e processe arquivos.</p>
+                    </div>
                 </div>
             </div>
             
-            <div class="card results-card">
-                <h2><i class="fas fa-clipboard-list"></i> Resultados</h2>
-                <div id="processing-indicator" class="hidden">
-                    <div class="spinner"></div>
-                    <p>Processando arquivos, por favor aguarde...</p>
+            <!-- Tab de processamento PDF -->
+            <div id="pdf-tab" class="tab-content">
+                <div class="card">
+                    <h2><i class="fas fa-file-pdf"></i> Processamento de PDF com Amazon Textract</h2>
+                    <div class="alert info">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <p>Este recurso utiliza o Amazon Textract para extrair texto e estrutura de documentos PDF.</p>
+                            <p>É necessário ter as credenciais AWS configuradas.</p>
+                        </div>
+                    </div>
+                    
+                    <form id="pdf-upload-form" enctype="multipart/form-data">
+                        <div class="form-group">
+                            <label for="pdf-file-upload">Selecione um arquivo PDF:</label>
+                            <div class="file-input-wrapper">
+                                <input type="file" id="pdf-file-upload" name="pdf_file" accept=".pdf">
+                                <div class="file-input-placeholder" id="pdf-filename">Nenhum arquivo selecionado</div>
+                                <button type="button" class="btn secondary" id="pdf-select-btn">Selecionar PDF</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn primary" id="pdf-process-btn">
+                                <i class="fas fa-cloud-upload-alt"></i> Processar PDF com Textract
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="pdf-processing-indicator" class="hidden">
+                        <div class="spinner"></div>
+                        <p>Processando PDF com Amazon Textract, isso pode levar alguns minutos...</p>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="pdf-progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="pdf-results" class="hidden">
+                        <!-- Resultados do processamento PDF serão mostrados aqui -->
+                    </div>
                 </div>
-                <div id="results">
-                    <p class="no-results">Nenhum resultado ainda. Selecione e processe arquivos.</p>
+                
+                <div id="json-files-from-pdf" class="card hidden">
+                    <h2><i class="fas fa-file-code"></i> Arquivos JSON gerados</h2>
+                    <p class="info-text">Selecione qual arquivo JSON deseja processar para gerar relatórios Excel/CSV:</p>
+                    
+                    <div id="pdf-json-files" class="file-list">
+                        <!-- Lista de arquivos JSON gerados a partir do PDF -->
+                    </div>
+                    
+                    <div class="actions">
+                        <button id="process-pdf-json-btn" class="btn primary">
+                            <i class="fas fa-cogs"></i> Processar JSON selecionado
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>

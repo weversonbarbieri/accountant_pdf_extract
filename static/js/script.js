@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Elementos da interface
+    // Elementos da interface principal
     const selectAllCheckbox = document.getElementById('select-all');
     const fileCheckboxes = document.querySelectorAll('.file-checkbox');
     const processButton = document.getElementById('process-button');
@@ -12,6 +12,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropArea = document.getElementById('drop-area');
     const filePreview = document.getElementById('file-preview');
     const deleteButtons = document.querySelectorAll('.delete-file');
+    
+    // Elementos das tabs
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    // Elementos da tab de PDF
+    const pdfForm = document.getElementById('pdf-upload-form');
+    const pdfFileUpload = document.getElementById('pdf-file-upload');
+    const pdfFilename = document.getElementById('pdf-filename');
+    const pdfSelectBtn = document.getElementById('pdf-select-btn');
+    const pdfProcessingIndicator = document.getElementById('pdf-processing-indicator');
+    const pdfResults = document.getElementById('pdf-results');
+    const jsonFilesFromPdf = document.getElementById('json-files-from-pdf');
+    const pdfJsonFiles = document.getElementById('pdf-json-files');
+    const processPdfJsonBtn = document.getElementById('process-pdf-json-btn');
+    
+    // Manipulação de tabs
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Remover classe active de todos os botões e conteúdos
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Adicionar classe active ao botão clicado
+            this.classList.add('active');
+            
+            // Mostrar o conteúdo correspondente à tab clicada
+            const tabId = this.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
     
     // Criar modal de confirmação
     const modalHTML = `
@@ -388,4 +419,267 @@ document.addEventListener('DOMContentLoaded', function() {
             uploadButton.disabled = false;
         });
     });
+    
+    // ========== FUNCIONALIDADE DE PDF ==========
+    
+    // Interação com seleção de arquivo PDF
+    if (pdfSelectBtn) {
+        pdfSelectBtn.addEventListener('click', function() {
+            pdfFileUpload.click();
+        });
+    }
+    
+    if (pdfFileUpload) {
+        pdfFileUpload.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                pdfFilename.textContent = this.files[0].name;
+            } else {
+                pdfFilename.textContent = 'Nenhum arquivo selecionado';
+            }
+        });
+    }
+    
+    // Processamento de PDF
+    if (pdfForm) {
+        pdfForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validar se há arquivo selecionado
+            if (!pdfFileUpload.files.length) {
+                alert('Por favor, selecione um arquivo PDF para processar.');
+                return;
+            }
+            
+            // Configurar exibição
+            pdfProcessingIndicator.classList.remove('hidden');
+            pdfResults.classList.add('hidden');
+            jsonFilesFromPdf.classList.add('hidden');
+            
+            // Preparar FormData
+            const formData = new FormData();
+            formData.append('pdf_file', pdfFileUpload.files[0]);
+            
+            // Configurar a simulação de progresso (o processo real leva alguns minutos)
+            const progressBar = document.getElementById('pdf-progress-bar');
+            let progress = 0;
+            
+            const progressInterval = setInterval(() => {
+                progress += 1;
+                if (progress > 95) {
+                    clearInterval(progressInterval);
+                } else {
+                    progressBar.style.width = progress + '%';
+                }
+            }, 1000); // Atualiza a cada segundo
+            
+            // Enviar para processamento
+            fetch('/processar-pdf', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Limpar intervalo e completar a barra de progresso
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                
+                // Após 0.5 segundo, exibir o resultado
+                setTimeout(() => {
+                    pdfProcessingIndicator.classList.add('hidden');
+                    pdfResults.classList.remove('hidden');
+                    
+                    // Exibir resultado do processamento
+                    if (data.sucesso) {
+                        // Exibir informações de sucesso
+                        pdfResults.innerHTML = `
+                            <div class="result-item result-success">
+                                <div>
+                                    <strong><i class="fas fa-check-circle"></i> ${data.nome_arquivo}</strong>
+                                    <p>${data.mensagem}</p>
+                                    <p>Tempo de processamento: ${(data.tempo_processamento / 60).toFixed(2)} minutos</p>
+                                </div>
+                                <div>
+                                    <span class="status-badge badge-success">Sucesso</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Se houver arquivos JSON gerados, mostrar opções para processá-los
+                        if (data.arquivos_json && data.arquivos_json.length > 0) {
+                            // Exibir o card de JSON files
+                            jsonFilesFromPdf.classList.remove('hidden');
+                            
+                            // Preencher a lista de arquivos JSON
+                            const jsonFilesHTML = data.arquivos_json.map(arquivo => {
+                                const nomeArquivo = arquivo.split('/').pop();
+                                return `
+                                    <div class="file-item">
+                                        <input type="radio" id="json-${nomeArquivo}" name="json_file" 
+                                               class="file-json-radio" value="${arquivo}">
+                                        <label for="json-${nomeArquivo}" class="file-label">
+                                            <i class="fas fa-file-code"></i> ${nomeArquivo}
+                                        </label>
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            pdfJsonFiles.innerHTML = jsonFilesHTML;
+                        }
+                    } else {
+                        // Exibir informações de erro
+                        pdfResults.innerHTML = `
+                            <div class="result-item result-error">
+                                <div>
+                                    <strong><i class="fas fa-exclamation-circle"></i> Erro no processamento</strong>
+                                    <p>${data.mensagem}</p>
+                                    ${data.detalhes ? `<div class="error-details"><pre>${data.detalhes}</pre></div>` : ''}
+                                </div>
+                                <div>
+                                    <span class="status-badge badge-error">Erro</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }, 500);
+            })
+            .catch(error => {
+                // Limpar intervalo
+                clearInterval(progressInterval);
+                
+                // Exibir erro
+                pdfProcessingIndicator.classList.add('hidden');
+                pdfResults.classList.remove('hidden');
+                pdfResults.innerHTML = `
+                    <div class="result-item result-error">
+                        <div>
+                            <strong><i class="fas fa-exclamation-triangle"></i> Erro de comunicação</strong>
+                            <p>Ocorreu um erro ao comunicar com o servidor: ${error.message}</p>
+                        </div>
+                        <div>
+                            <span class="status-badge badge-error">Erro</span>
+                        </div>
+                    </div>
+                `;
+                console.error('Erro:', error);
+            });
+        });
+    }
+    
+    // Processamento dos arquivos JSON gerados a partir do PDF
+    if (processPdfJsonBtn) {
+        processPdfJsonBtn.addEventListener('click', function() {
+            // Verificar se algum arquivo JSON foi selecionado
+            const selectedJsonFile = document.querySelector('input[name="json_file"]:checked');
+            
+            if (!selectedJsonFile) {
+                alert('Por favor, selecione um arquivo JSON para processar.');
+                return;
+            }
+            
+            const jsonFilePath = selectedJsonFile.value;
+            
+            // Mostrar indicador de processamento
+            processingIndicator.classList.remove('hidden');
+            resultsContainer.innerHTML = '';
+            
+            // Enviar requisição para processar o arquivo
+            fetch('/processar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ arquivos: [jsonFilePath] })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Alternar para a tab de JSON e mostrar os resultados
+                document.querySelector('.tab-btn[data-tab="json-tab"]').click();
+                
+                // Ocultar indicador de processamento
+                processingIndicator.classList.add('hidden');
+                
+                // Exibir resultados (usando o mesmo código que temos na função acima)
+                if (data.resultados && data.resultados.length > 0) {
+                    const resultadosHTML = data.resultados.map(resultado => {
+                        // Determinar a classe CSS com base no status
+                        let classeResultado = 'result-success';
+                        let badgeClass = 'badge-success';
+                        let iconClass = 'fas fa-check-circle';
+                        
+                        if (resultado.status === 'Erro') {
+                            classeResultado = 'result-error';
+                            badgeClass = 'badge-error';
+                            iconClass = 'fas fa-exclamation-circle';
+                        }
+                        
+                        // Renderizar mensagens específicas para tipos de erro
+                        let detalhesErro = '';
+                        if (resultado.tipo_erro === 'sem_dados') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> O arquivo JSON não contém dados suficientes para gerar planilhas.</p>
+                                    <p><strong>Solução:</strong> Verifique se o arquivo JSON contém blocos de texto válidos com pares chave-valor.</p>
+                                </div>
+                            `;
+                        } else if (resultado.tipo_erro === 'sem_blocos') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> Não foram encontrados blocos de texto no arquivo.</p>
+                                    <p><strong>Solução:</strong> O arquivo JSON parece estar vazio ou não contém o formato esperado.</p>
+                                </div>
+                            `;
+                        } else if (resultado.tipo_erro === 'json_invalido') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> O arquivo JSON está em formato inválido.</p>
+                                    <p><strong>Solução:</strong> Verifique a sintaxe do arquivo JSON ou gere-o novamente.</p>
+                                </div>
+                            `;
+                        } else if (resultado.tipo_erro === 'arquivo_nao_encontrado') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> O arquivo não foi encontrado no servidor.</p>
+                                    <p><strong>Solução:</strong> Verifique se o arquivo existe ou tente fazer upload novamente.</p>
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                            <div class="result-item ${classeResultado}">
+                                <div>
+                                    <strong><i class="${iconClass}"></i> ${resultado.arquivo}</strong>
+                                    <p>${resultado.mensagem}</p>
+                                    ${detalhesErro}
+                                </div>
+                                <div>
+                                    <span class="status-badge ${badgeClass}">${resultado.status}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    resultsContainer.innerHTML = resultadosHTML;
+                } else {
+                    resultsContainer.innerHTML = '<p class="no-results">Nenhum resultado obtido.</p>';
+                }
+            })
+            .catch(error => {
+                processingIndicator.classList.add('hidden');
+                resultsContainer.innerHTML = `
+                    <div class="result-item result-error">
+                        <div>
+                            <p><i class="fas fa-exclamation-triangle"></i> Erro ao processar arquivos: ${error.message}</p>
+                            <div class="error-details">
+                                <p>Ocorreu um erro na comunicação com o servidor. Por favor, tente novamente mais tarde.</p>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="status-badge badge-error">Erro</span>
+                        </div>
+                    </div>
+                `;
+                console.error('Erro:', error);
+            });
+        });
+    }
 });

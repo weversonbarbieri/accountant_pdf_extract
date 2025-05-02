@@ -11,6 +11,8 @@ import glob
 from analisar_json import AnalisadorJSON
 from gerar_excel import processar_arquivo
 import traceback
+import textract_module
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 
@@ -137,6 +139,56 @@ def processar():
     
     return jsonify({'resultados': resultados})
 
+# Rota para processar arquivos PDF
+@app.route('/processar-pdf', methods=['POST'])
+def processar_pdf():
+    if 'pdf_file' not in request.files:
+        return jsonify({
+            'sucesso': False,
+            'mensagem': 'Nenhum arquivo enviado'
+        })
+    
+    pdf_file = request.files['pdf_file']
+    if pdf_file.filename == '':
+        return jsonify({
+            'sucesso': False,
+            'mensagem': 'Nome de arquivo inválido'
+        })
+    
+    # Verificar a configuração AWS antes de processar
+    aws_configurado, mensagem_config = textract_module.verificar_configuracao_aws()
+    if not aws_configurado:
+        return jsonify({
+            'sucesso': False,
+            'mensagem': mensagem_config
+        })
+    
+    # Salvar o arquivo PDF na pasta uploads
+    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_file.filename)
+    pdf_file.save(pdf_path)
+    
+    # Processar o PDF
+    try:
+        resultado = textract_module.processar_pdf(pdf_path)
+        
+        # Se o processamento foi bem-sucedido, retornar informações sobre os arquivos JSON gerados
+        if resultado['sucesso']:
+            # Adicionar informações extras ao resultado
+            resultado['nome_arquivo'] = pdf_file.filename
+            
+            # Se houver arquivos JSON gerados, mostrar opções para processá-los
+            arquivos_json = resultado['arquivos_json']
+            resultado['arquivos_disponiveis'] = [os.path.basename(arquivo) for arquivo in arquivos_json]
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        return jsonify({
+            'sucesso': False,
+            'mensagem': f'Erro ao processar PDF: {str(e)}',
+            'detalhes': traceback.format_exc()
+        })
+
 # Rota para servir arquivos estáticos
 @app.route('/static/<path:path>')
 def serve_static(path):
@@ -163,78 +215,148 @@ def criar_arquivos_estaticos():
         </header>
         
         <main>
-            <div class="card">
-                <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
-                <div class="dropzone" id="drop-area">
-                    <div class="dropzone-content">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Arraste e solte arquivos JSON aqui</p>
-                        <span>ou</span>
-                        <label for="file-upload" class="btn primary">Selecionar arquivos</label>
-                        <input type="file" id="file-upload" multiple accept=".json" hidden>
-                    </div>
-                    <div class="file-preview" id="file-preview">
-                        <!-- Arquivos selecionados serão mostrados aqui -->
-                    </div>
-                </div>
-                <div class="upload-controls">
-                    <button id="upload-button" class="btn primary">
-                        <i class="fas fa-upload"></i> Enviar arquivos
-                    </button>
-                    <button id="clear-button" class="btn secondary">
-                        <i class="fas fa-trash"></i> Limpar seleção
-                    </button>
-                </div>
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="json-tab">
+                    <i class="fas fa-file-code"></i> Arquivos JSON
+                </button>
+                <button class="tab-btn" data-tab="pdf-tab">
+                    <i class="fas fa-file-pdf"></i> Extrair texto de PDF
+                </button>
             </div>
             
-            <div class="card">
-                <h2><i class="fas fa-list"></i> Arquivos disponíveis</h2>
-                <div class="file-list">
-                    <div class="file-list-header">
-                        <div class="file-select-all">
-                            <input type="checkbox" id="select-all">
-                            <label for="select-all">Selecionar todos</label>
+            <!-- Tab de processamento JSON -->
+            <div id="json-tab" class="tab-content active">
+                <div class="card">
+                    <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
+                    <div class="dropzone" id="drop-area">
+                        <div class="dropzone-content">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Arraste e solte arquivos JSON aqui</p>
+                            <span>ou</span>
+                            <label for="file-upload" class="btn primary">Selecionar arquivos</label>
+                            <input type="file" id="file-upload" multiple accept=".json" hidden>
                         </div>
-                        <div class="file-name-header">Nome do arquivo</div>
-                        <div class="file-actions-header">Ações</div>
+                        <div class="file-preview" id="file-preview">
+                            <!-- Arquivos selecionados serão mostrados aqui -->
+                        </div>
                     </div>
-                    <div id="files">
-                    {% if arquivos_json %}
-                        {% for arquivo in arquivos_json %}
-                        <div class="file-item">
-                            <input type="checkbox" id="file-{{ loop.index }}" class="file-checkbox" data-filename="{{ arquivo }}">
-                            <label for="file-{{ loop.index }}" class="file-label">{{ arquivo }}</label>
-                            <div class="file-actions">
-                                <button class="btn-icon delete-file" data-filename="{{ arquivo }}" title="Excluir arquivo">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="no-files">Nenhum arquivo JSON encontrado no diretório.</p>
-                    {% endif %}
+                    <div class="upload-controls">
+                        <button id="upload-button" class="btn primary">
+                            <i class="fas fa-upload"></i> Enviar arquivos
+                        </button>
+                        <button id="clear-button" class="btn secondary">
+                            <i class="fas fa-trash"></i> Limpar seleção
+                        </button>
                     </div>
                 </div>
                 
-                <div class="actions">
-                    <button id="process-button" class="btn primary">
-                        <i class="fas fa-cogs"></i> Processar arquivos selecionados
-                    </button>
-                    <button id="refresh-button" class="btn secondary">
-                        <i class="fas fa-sync-alt"></i> Atualizar lista
-                    </button>
+                <div class="card">
+                    <h2><i class="fas fa-list"></i> Arquivos disponíveis</h2>
+                    <div class="file-list">
+                        <div class="file-list-header">
+                            <div class="file-select-all">
+                                <input type="checkbox" id="select-all">
+                                <label for="select-all">Selecionar todos</label>
+                            </div>
+                            <div class="file-name-header">Nome do arquivo</div>
+                            <div class="file-actions-header">Ações</div>
+                        </div>
+                        <div id="files">
+                        {% if arquivos_json %}
+                            {% for arquivo in arquivos_json %}
+                            <div class="file-item">
+                                <input type="checkbox" id="file-{{ loop.index }}" class="file-checkbox" data-filename="{{ arquivo }}">
+                                <label for="file-{{ loop.index }}" class="file-label">{{ arquivo }}</label>
+                                <div class="file-actions">
+                                    <button class="btn-icon delete-file" data-filename="{{ arquivo }}" title="Excluir arquivo">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="no-files">Nenhum arquivo JSON encontrado no diretório.</p>
+                        {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button id="process-button" class="btn primary">
+                            <i class="fas fa-cogs"></i> Processar arquivos selecionados
+                        </button>
+                        <button id="refresh-button" class="btn secondary">
+                            <i class="fas fa-sync-alt"></i> Atualizar lista
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card results-card">
+                    <h2><i class="fas fa-clipboard-list"></i> Resultados</h2>
+                    <div id="processing-indicator" class="hidden">
+                        <div class="spinner"></div>
+                        <p>Processando arquivos, por favor aguarde...</p>
+                    </div>
+                    <div id="results">
+                        <p class="no-results">Nenhum resultado ainda. Selecione e processe arquivos.</p>
+                    </div>
                 </div>
             </div>
             
-            <div class="card results-card">
-                <h2><i class="fas fa-clipboard-list"></i> Resultados</h2>
-                <div id="processing-indicator" class="hidden">
-                    <div class="spinner"></div>
-                    <p>Processando arquivos, por favor aguarde...</p>
+            <!-- Tab de processamento PDF -->
+            <div id="pdf-tab" class="tab-content">
+                <div class="card">
+                    <h2><i class="fas fa-file-pdf"></i> Processamento de PDF com Amazon Textract</h2>
+                    <div class="alert info">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <p>Este recurso utiliza o Amazon Textract para extrair texto e estrutura de documentos PDF.</p>
+                            <p>É necessário ter as credenciais AWS configuradas.</p>
+                        </div>
+                    </div>
+                    
+                    <form id="pdf-upload-form" enctype="multipart/form-data">
+                        <div class="form-group">
+                            <label for="pdf-file-upload">Selecione um arquivo PDF:</label>
+                            <div class="file-input-wrapper">
+                                <input type="file" id="pdf-file-upload" name="pdf_file" accept=".pdf">
+                                <div class="file-input-placeholder" id="pdf-filename">Nenhum arquivo selecionado</div>
+                                <button type="button" class="btn secondary" id="pdf-select-btn">Selecionar PDF</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn primary" id="pdf-process-btn">
+                                <i class="fas fa-cloud-upload-alt"></i> Processar PDF com Textract
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="pdf-processing-indicator" class="hidden">
+                        <div class="spinner"></div>
+                        <p>Processando PDF com Amazon Textract, isso pode levar alguns minutos...</p>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="pdf-progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="pdf-results" class="hidden">
+                        <!-- Resultados do processamento PDF serão mostrados aqui -->
+                    </div>
                 </div>
-                <div id="results">
-                    <p class="no-results">Nenhum resultado ainda. Selecione e processe arquivos.</p>
+                
+                <div id="json-files-from-pdf" class="card hidden">
+                    <h2><i class="fas fa-file-code"></i> Arquivos JSON gerados</h2>
+                    <p class="info-text">Selecione qual arquivo JSON deseja processar para gerar relatórios Excel/CSV:</p>
+                    
+                    <div id="pdf-json-files" class="file-list">
+                        <!-- Lista de arquivos JSON gerados a partir do PDF -->
+                    </div>
+                    
+                    <div class="actions">
+                        <button id="process-pdf-json-btn" class="btn primary">
+                            <i class="fas fa-cogs"></i> Processar JSON selecionado
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -258,6 +380,7 @@ def criar_arquivos_estaticos():
     --secondary-dark: #27ae60;
     --error-color: #e74c3c;
     --warning-color: #f39c12;
+    --info-color: #3498db;
     --dark-color: #2c3e50;
     --light-color: #ecf0f1;
     --border-color: #ddd;
@@ -303,6 +426,54 @@ header p {
     font-size: 1.1rem;
 }
 
+/* Tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 25px;
+    border-bottom: 2px solid var(--border-color);
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    background: none;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    cursor: pointer;
+    transition: all var(--transition-speed) ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-btn i {
+    margin-right: 8px;
+}
+
+.tab-btn:hover {
+    background-color: var(--hover-color);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom: 3px solid var(--primary-color);
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
 /* Cards */
 .card {
     background: white;
@@ -330,6 +501,116 @@ header p {
 .card h2 i {
     margin-right: 10px;
     color: var(--primary-color);
+}
+
+/* Alertas */
+.alert {
+    display: flex;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    align-items: flex-start;
+}
+
+.alert i {
+    font-size: 1.5rem;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.alert div {
+    flex: 1;
+}
+
+.alert p {
+    margin-bottom: 8px;
+}
+
+.alert p:last-child {
+    margin-bottom: 0;
+}
+
+.info {
+    background-color: rgba(52, 152, 219, 0.1);
+    border-left: 4px solid var(--info-color);
+}
+
+.info i {
+    color: var(--info-color);
+}
+
+.warning {
+    background-color: rgba(243, 156, 18, 0.1);
+    border-left: 4px solid var(--warning-color);
+}
+
+.warning i {
+    color: var(--warning-color);
+}
+
+.error {
+    background-color: rgba(231, 76, 60, 0.1);
+    border-left: 4px solid var(--error-color);
+}
+
+.error i {
+    color: var(--error-color);
+}
+
+/* Form groups */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.file-input-wrapper {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px 12px;
+    background-color: white;
+}
+
+.file-input-wrapper input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.file-input-placeholder {
+    flex: 1;
+    color: #777;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Progress bar */
+.progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background-color: #f1f1f1;
+    border-radius: 4px;
+    margin-top: 15px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--primary-color);
+    width: 0%;
+    transition: width 0.3s ease;
 }
 
 /* Dropzone */
@@ -571,7 +852,8 @@ header p {
     min-height: 200px;
 }
 
-#processing-indicator {
+#processing-indicator,
+#pdf-processing-indicator {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -649,6 +931,50 @@ header p {
     border-radius: 6px;
     font-size: 13px;
     box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
+}
+
+/* PDF processing results */
+.pdf-result {
+    margin-top: 20px;
+    padding: 20px;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.pdf-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.pdf-result-files {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #fff;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.pdf-result-file {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.pdf-result-file:last-child {
+    border-bottom: none;
+}
+
+.pdf-result-file i {
+    margin-right: 10px;
+    color: var(--primary-color);
+}
+
+.info-text {
+    margin-bottom: 15px;
+    color: #555;
 }
 
 /* Modal de confirmação */
@@ -795,7 +1121,7 @@ footer {
     # Criar JavaScript
     with open(os.path.join(STATIC_FOLDER, 'js', 'script.js'), 'w', encoding='utf-8') as f:
         f.write('''document.addEventListener('DOMContentLoaded', function() {
-    // Elementos da interface
+    // Elementos da interface principal
     const selectAllCheckbox = document.getElementById('select-all');
     const fileCheckboxes = document.querySelectorAll('.file-checkbox');
     const processButton = document.getElementById('process-button');
@@ -808,6 +1134,37 @@ footer {
     const dropArea = document.getElementById('drop-area');
     const filePreview = document.getElementById('file-preview');
     const deleteButtons = document.querySelectorAll('.delete-file');
+    
+    // Elementos das tabs
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    // Elementos da tab de PDF
+    const pdfForm = document.getElementById('pdf-upload-form');
+    const pdfFileUpload = document.getElementById('pdf-file-upload');
+    const pdfFilename = document.getElementById('pdf-filename');
+    const pdfSelectBtn = document.getElementById('pdf-select-btn');
+    const pdfProcessingIndicator = document.getElementById('pdf-processing-indicator');
+    const pdfResults = document.getElementById('pdf-results');
+    const jsonFilesFromPdf = document.getElementById('json-files-from-pdf');
+    const pdfJsonFiles = document.getElementById('pdf-json-files');
+    const processPdfJsonBtn = document.getElementById('process-pdf-json-btn');
+    
+    // Manipulação de tabs
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Remover classe active de todos os botões e conteúdos
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Adicionar classe active ao botão clicado
+            this.classList.add('active');
+            
+            // Mostrar o conteúdo correspondente à tab clicada
+            const tabId = this.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
     
     // Criar modal de confirmação
     const modalHTML = `
@@ -1184,6 +1541,269 @@ footer {
             uploadButton.disabled = false;
         });
     });
+    
+    // ========== FUNCIONALIDADE DE PDF ==========
+    
+    // Interação com seleção de arquivo PDF
+    if (pdfSelectBtn) {
+        pdfSelectBtn.addEventListener('click', function() {
+            pdfFileUpload.click();
+        });
+    }
+    
+    if (pdfFileUpload) {
+        pdfFileUpload.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                pdfFilename.textContent = this.files[0].name;
+            } else {
+                pdfFilename.textContent = 'Nenhum arquivo selecionado';
+            }
+        });
+    }
+    
+    // Processamento de PDF
+    if (pdfForm) {
+        pdfForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validar se há arquivo selecionado
+            if (!pdfFileUpload.files.length) {
+                alert('Por favor, selecione um arquivo PDF para processar.');
+                return;
+            }
+            
+            // Configurar exibição
+            pdfProcessingIndicator.classList.remove('hidden');
+            pdfResults.classList.add('hidden');
+            jsonFilesFromPdf.classList.add('hidden');
+            
+            // Preparar FormData
+            const formData = new FormData();
+            formData.append('pdf_file', pdfFileUpload.files[0]);
+            
+            // Configurar a simulação de progresso (o processo real leva alguns minutos)
+            const progressBar = document.getElementById('pdf-progress-bar');
+            let progress = 0;
+            
+            const progressInterval = setInterval(() => {
+                progress += 1;
+                if (progress > 95) {
+                    clearInterval(progressInterval);
+                } else {
+                    progressBar.style.width = progress + '%';
+                }
+            }, 1000); // Atualiza a cada segundo
+            
+            // Enviar para processamento
+            fetch('/processar-pdf', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Limpar intervalo e completar a barra de progresso
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                
+                // Após 0.5 segundo, exibir o resultado
+                setTimeout(() => {
+                    pdfProcessingIndicator.classList.add('hidden');
+                    pdfResults.classList.remove('hidden');
+                    
+                    // Exibir resultado do processamento
+                    if (data.sucesso) {
+                        // Exibir informações de sucesso
+                        pdfResults.innerHTML = `
+                            <div class="result-item result-success">
+                                <div>
+                                    <strong><i class="fas fa-check-circle"></i> ${data.nome_arquivo}</strong>
+                                    <p>${data.mensagem}</p>
+                                    <p>Tempo de processamento: ${(data.tempo_processamento / 60).toFixed(2)} minutos</p>
+                                </div>
+                                <div>
+                                    <span class="status-badge badge-success">Sucesso</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Se houver arquivos JSON gerados, mostrar opções para processá-los
+                        if (data.arquivos_json && data.arquivos_json.length > 0) {
+                            // Exibir o card de JSON files
+                            jsonFilesFromPdf.classList.remove('hidden');
+                            
+                            // Preencher a lista de arquivos JSON
+                            const jsonFilesHTML = data.arquivos_json.map(arquivo => {
+                                const nomeArquivo = arquivo.split('/').pop();
+                                return `
+                                    <div class="file-item">
+                                        <input type="radio" id="json-${nomeArquivo}" name="json_file" 
+                                               class="file-json-radio" value="${arquivo}">
+                                        <label for="json-${nomeArquivo}" class="file-label">
+                                            <i class="fas fa-file-code"></i> ${nomeArquivo}
+                                        </label>
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            pdfJsonFiles.innerHTML = jsonFilesHTML;
+                        }
+                    } else {
+                        // Exibir informações de erro
+                        pdfResults.innerHTML = `
+                            <div class="result-item result-error">
+                                <div>
+                                    <strong><i class="fas fa-exclamation-circle"></i> Erro no processamento</strong>
+                                    <p>${data.mensagem}</p>
+                                    ${data.detalhes ? `<div class="error-details"><pre>${data.detalhes}</pre></div>` : ''}
+                                </div>
+                                <div>
+                                    <span class="status-badge badge-error">Erro</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }, 500);
+            })
+            .catch(error => {
+                // Limpar intervalo
+                clearInterval(progressInterval);
+                
+                // Exibir erro
+                pdfProcessingIndicator.classList.add('hidden');
+                pdfResults.classList.remove('hidden');
+                pdfResults.innerHTML = `
+                    <div class="result-item result-error">
+                        <div>
+                            <strong><i class="fas fa-exclamation-triangle"></i> Erro de comunicação</strong>
+                            <p>Ocorreu um erro ao comunicar com o servidor: ${error.message}</p>
+                        </div>
+                        <div>
+                            <span class="status-badge badge-error">Erro</span>
+                        </div>
+                    </div>
+                `;
+                console.error('Erro:', error);
+            });
+        });
+    }
+    
+    // Processamento dos arquivos JSON gerados a partir do PDF
+    if (processPdfJsonBtn) {
+        processPdfJsonBtn.addEventListener('click', function() {
+            // Verificar se algum arquivo JSON foi selecionado
+            const selectedJsonFile = document.querySelector('input[name="json_file"]:checked');
+            
+            if (!selectedJsonFile) {
+                alert('Por favor, selecione um arquivo JSON para processar.');
+                return;
+            }
+            
+            const jsonFilePath = selectedJsonFile.value;
+            
+            // Mostrar indicador de processamento
+            processingIndicator.classList.remove('hidden');
+            resultsContainer.innerHTML = '';
+            
+            // Enviar requisição para processar o arquivo
+            fetch('/processar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ arquivos: [jsonFilePath] })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Alternar para a tab de JSON e mostrar os resultados
+                document.querySelector('.tab-btn[data-tab="json-tab"]').click();
+                
+                // Ocultar indicador de processamento
+                processingIndicator.classList.add('hidden');
+                
+                // Exibir resultados (usando o mesmo código que temos na função acima)
+                if (data.resultados && data.resultados.length > 0) {
+                    const resultadosHTML = data.resultados.map(resultado => {
+                        // Determinar a classe CSS com base no status
+                        let classeResultado = 'result-success';
+                        let badgeClass = 'badge-success';
+                        let iconClass = 'fas fa-check-circle';
+                        
+                        if (resultado.status === 'Erro') {
+                            classeResultado = 'result-error';
+                            badgeClass = 'badge-error';
+                            iconClass = 'fas fa-exclamation-circle';
+                        }
+                        
+                        // Renderizar mensagens específicas para tipos de erro
+                        let detalhesErro = '';
+                        if (resultado.tipo_erro === 'sem_dados') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> O arquivo JSON não contém dados suficientes para gerar planilhas.</p>
+                                    <p><strong>Solução:</strong> Verifique se o arquivo JSON contém blocos de texto válidos com pares chave-valor.</p>
+                                </div>
+                            `;
+                        } else if (resultado.tipo_erro === 'sem_blocos') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> Não foram encontrados blocos de texto no arquivo.</p>
+                                    <p><strong>Solução:</strong> O arquivo JSON parece estar vazio ou não contém o formato esperado.</p>
+                                </div>
+                            `;
+                        } else if (resultado.tipo_erro === 'json_invalido') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> O arquivo JSON está em formato inválido.</p>
+                                    <p><strong>Solução:</strong> Verifique a sintaxe do arquivo JSON ou gere-o novamente.</p>
+                                </div>
+                            `;
+                        } else if (resultado.tipo_erro === 'arquivo_nao_encontrado') {
+                            detalhesErro = `
+                                <div class="error-details">
+                                    <p><strong>Problema:</strong> O arquivo não foi encontrado no servidor.</p>
+                                    <p><strong>Solução:</strong> Verifique se o arquivo existe ou tente fazer upload novamente.</p>
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                            <div class="result-item ${classeResultado}">
+                                <div>
+                                    <strong><i class="${iconClass}"></i> ${resultado.arquivo}</strong>
+                                    <p>${resultado.mensagem}</p>
+                                    ${detalhesErro}
+                                </div>
+                                <div>
+                                    <span class="status-badge ${badgeClass}">${resultado.status}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    resultsContainer.innerHTML = resultadosHTML;
+                } else {
+                    resultsContainer.innerHTML = '<p class="no-results">Nenhum resultado obtido.</p>';
+                }
+            })
+            .catch(error => {
+                processingIndicator.classList.add('hidden');
+                resultsContainer.innerHTML = `
+                    <div class="result-item result-error">
+                        <div>
+                            <p><i class="fas fa-exclamation-triangle"></i> Erro ao processar arquivos: ${error.message}</p>
+                            <div class="error-details">
+                                <p>Ocorreu um erro na comunicação com o servidor. Por favor, tente novamente mais tarde.</p>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="status-badge badge-error">Erro</span>
+                        </div>
+                    </div>
+                `;
+                console.error('Erro:', error);
+            });
+        });
+    }
 });''')
 
 # Rota para upload de arquivos
@@ -1244,7 +1864,34 @@ def abrir_navegador():
     else:
         print("Navegador já foi aberto anteriormente")
 
+# Verifica e cria o arquivo .env se não existir
+def verificar_env():
+    if not os.path.exists('.env'):
+        print("Arquivo .env não encontrado. Criando com configurações padrão...")
+        with open('.env', 'w') as f:
+            f.write("""# Credenciais AWS para Amazon Textract
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=
+""")
+        print("Arquivo .env criado. Por favor, edite-o com suas credenciais AWS antes de usar a funcionalidade de extração de PDF.")
+    else:
+        # Verificar se as credenciais estão configuradas
+        load_dotenv()
+        
+        aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        s3_bucket = os.getenv('S3_BUCKET_NAME')
+        
+        if not (aws_access_key and aws_secret_key and s3_bucket):
+            print("AVISO: Credenciais AWS incompletas no arquivo .env.")
+            print("Por favor, configure corretamente as credenciais para usar a funcionalidade de extração de PDF.")
+
 if __name__ == '__main__':
+    # Verificar o arquivo .env
+    verificar_env()
+    
     # Criar arquivos estáticos necessários
     criar_arquivos_estaticos()
     

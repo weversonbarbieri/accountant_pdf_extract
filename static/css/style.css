@@ -6,6 +6,7 @@
     --secondary-dark: #27ae60;
     --error-color: #e74c3c;
     --warning-color: #f39c12;
+    --info-color: #3498db;
     --dark-color: #2c3e50;
     --light-color: #ecf0f1;
     --border-color: #ddd;
@@ -51,6 +52,54 @@ header p {
     font-size: 1.1rem;
 }
 
+/* Tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 25px;
+    border-bottom: 2px solid var(--border-color);
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    background: none;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    cursor: pointer;
+    transition: all var(--transition-speed) ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-btn i {
+    margin-right: 8px;
+}
+
+.tab-btn:hover {
+    background-color: var(--hover-color);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom: 3px solid var(--primary-color);
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
 /* Cards */
 .card {
     background: white;
@@ -78,6 +127,116 @@ header p {
 .card h2 i {
     margin-right: 10px;
     color: var(--primary-color);
+}
+
+/* Alertas */
+.alert {
+    display: flex;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    align-items: flex-start;
+}
+
+.alert i {
+    font-size: 1.5rem;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.alert div {
+    flex: 1;
+}
+
+.alert p {
+    margin-bottom: 8px;
+}
+
+.alert p:last-child {
+    margin-bottom: 0;
+}
+
+.info {
+    background-color: rgba(52, 152, 219, 0.1);
+    border-left: 4px solid var(--info-color);
+}
+
+.info i {
+    color: var(--info-color);
+}
+
+.warning {
+    background-color: rgba(243, 156, 18, 0.1);
+    border-left: 4px solid var(--warning-color);
+}
+
+.warning i {
+    color: var(--warning-color);
+}
+
+.error {
+    background-color: rgba(231, 76, 60, 0.1);
+    border-left: 4px solid var(--error-color);
+}
+
+.error i {
+    color: var(--error-color);
+}
+
+/* Form groups */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.file-input-wrapper {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px 12px;
+    background-color: white;
+}
+
+.file-input-wrapper input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.file-input-placeholder {
+    flex: 1;
+    color: #777;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Progress bar */
+.progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background-color: #f1f1f1;
+    border-radius: 4px;
+    margin-top: 15px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--primary-color);
+    width: 0%;
+    transition: width 0.3s ease;
 }
 
 /* Dropzone */
@@ -319,7 +478,8 @@ header p {
     min-height: 200px;
 }
 
-#processing-indicator {
+#processing-indicator,
+#pdf-processing-indicator {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -397,6 +557,50 @@ header p {
     border-radius: 6px;
     font-size: 13px;
     box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
+}
+
+/* PDF processing results */
+.pdf-result {
+    margin-top: 20px;
+    padding: 20px;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.pdf-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.pdf-result-files {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #fff;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.pdf-result-file {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.pdf-result-file:last-child {
+    border-bottom: none;
+}
+
+.pdf-result-file i {
+    margin-right: 10px;
+    color: var(--primary-color);
+}
+
+.info-text {
+    margin-bottom: 15px;
+    color: #555;
 }
 
 /* Modal de confirmação */
