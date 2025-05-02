@@ -9,3 +9,4 @@ csv_output/
 __pycache__/
 *.py[cod]
 *$py.class
+*.json

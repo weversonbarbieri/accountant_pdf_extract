@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisador de JSON</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Analisador de JSON e Gerador Excel</h1>
+            <p>Selecione os arquivos JSON para análise e geração de relatórios</p>
+        </header>
+        
+        <main>
+            <div class="card">
+                <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
+                <div class="dropzone" id="drop-area">
+                    <div class="dropzone-content">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Arraste e solte arquivos JSON aqui</p>
+                        <span>ou</span>
+                        <label for="file-upload" class="btn primary">Selecionar arquivos</label>
+                        <input type="file" id="file-upload" multiple accept=".json" hidden>
+                    </div>
+                    <div class="file-preview" id="file-preview">
+                        <!-- Arquivos selecionados serão mostrados aqui -->
+                    </div>
+                </div>
+                <div class="upload-controls">
+                    <button id="upload-button" class="btn primary">
+                        <i class="fas fa-upload"></i> Enviar arquivos
+                    </button>
+                    <button id="clear-button" class="btn secondary">
+                        <i class="fas fa-trash"></i> Limpar seleção
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><i class="fas fa-list"></i> Arquivos disponíveis</h2>
+                <div class="file-list">
+                    <div class="file-list-header">
+                        <div class="file-select-all">
+                            <input type="checkbox" id="select-all">
+                            <label for="select-all">Selecionar todos</label>
+                        </div>
+                        <div class="file-name-header">Nome do arquivo</div>
+                        <div class="file-actions-header">Ações</div>
+                    </div>
+                    <div id="files">
+                    {% if arquivos_json %}
+                        {% for arquivo in arquivos_json %}
+                        <div class="file-item">
+                            <input type="checkbox" id="file-{{ loop.index }}" class="file-checkbox" data-filename="{{ arquivo }}">
+                            <label for="file-{{ loop.index }}" class="file-label">{{ arquivo }}</label>
+                            <div class="file-actions">
+                                <button class="btn-icon delete-file" data-filename="{{ arquivo }}" title="Excluir arquivo">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="no-files">Nenhum arquivo JSON encontrado no diretório.</p>
+                    {% endif %}
+                    </div>
+                </div>
+                
+                <div class="actions">
+                    <button id="process-button" class="btn primary">
+                        <i class="fas fa-cogs"></i> Processar arquivos selecionados
+                    </button>
+                    <button id="refresh-button" class="btn secondary">
+                        <i class="fas fa-sync-alt"></i> Atualizar lista
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card results-card">
+                <h2><i class="fas fa-clipboard-list"></i> Resultados</h2>
+                <div id="processing-indicator" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Processando arquivos, por favor aguarde...</p>
+                </div>
+                <div id="results">
+                    <p class="no-results">Nenhum resultado ainda. Selecione e processe arquivos.</p>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Processamento de arquivos JSON para extração de texto e pares chave-valor</p>
+        </footer>
+    </div>
+    
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
