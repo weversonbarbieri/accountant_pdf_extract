@@ -8,23 +8,23 @@ import re
 from dotenv import load_dotenv
 import sys
 
-# Configure logging
+# Configurar logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('textract-json-response')
 
-# Load environment variables
+# Carregar variáveis de ambiente
 load_dotenv()
 
-# AWS Configuration
+# Configuração AWS
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
 S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
 
-# Initialize S3 and Textract clients
+# Inicializar clientes S3 e Textract
 s3 = boto3.client(
     's3',
     aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -40,26 +40,26 @@ textract = boto3.client(
 )
 
 def upload_to_s3(file_path):
-    """Uploads a file to the S3 bucket"""
-    logger.info(f"=== Starting upload to S3 ===")
+    """Faz upload de um arquivo para o bucket S3"""
+    logger.info(f"=== Iniciando upload para S3 ===")
     s3_object_name = os.path.basename(file_path)
-    file_size = os.path.getsize(file_path) / (1024 * 1024)  # Size in MB
+    file_size = os.path.getsize(file_path) / (1024 * 1024)  # Tamanho em MB
     
     try:
-        logger.info(f"Sending file '{file_path}' (size: {file_size:.2f} MB) to '{S3_BUCKET_NAME}/{s3_object_name}'")
+        logger.info(f"Enviando arquivo '{file_path}' (tamanho: {file_size:.2f} MB) para '{S3_BUCKET_NAME}/{s3_object_name}'")
         start_time = time.time()
         s3.upload_file(file_path, S3_BUCKET_NAME, s3_object_name)
         elapsed_time = time.time() - start_time
-        logger.info(f"Upload completed successfully in {elapsed_time:.2f} seconds")
+        logger.info(f"Upload concluído com sucesso em {elapsed_time:.2f} segundos")
         return s3_object_name
     except Exception as e:
-        logger.error(f"Error uploading to S3: {str(e)}", exc_info=True)
+        logger.error(f"Erro ao fazer upload para S3: {str(e)}", exc_info=True)
         return None
 
 def start_document_analysis(document_name):
-    """Starts asynchronous document analysis"""
+    """Inicia análise assíncrona de documento"""
     try:
-        logger.info(f"Starting document analysis for: {document_name}")
+        logger.info(f"Iniciando análise de documento para: {document_name}")
         response = textract.start_document_analysis(
             DocumentLocation={
                 'S3Object': {
@@ -70,221 +70,191 @@ def start_document_analysis(document_name):
             FeatureTypes=['TABLES', 'FORMS']
         )
         job_id = response['JobId']
-        logger.info(f"Analysis job started with ID: {job_id}")
+        logger.info(f"Job de análise iniciado com ID: {job_id}")
         return job_id
     except Exception as e:
-        logger.error(f"Error starting document analysis: {e}")
+        logger.error(f"Erro ao iniciar análise de documento: {e}")
         return None
 
-def start_text_detection(document_name):
-    """Starts asynchronous text detection"""
+def check_job_status(job_id):
+    """Verifica o status de um job"""
     try:
-        logger.info(f"Starting text detection for: {document_name}")
-        response = textract.start_document_text_detection(
-            DocumentLocation={
-                'S3Object': {
-                    'Bucket': S3_BUCKET_NAME,
-                    'Name': document_name
-                }
-            }
-        )
-        job_id = response['JobId']
-        logger.info(f"Text detection job started with ID: {job_id}")
-        return job_id
-    except Exception as e:
-        logger.error(f"Error starting text detection: {e}")
-        return None
-
-def check_job_status(job_id, job_type='ANALYSIS'):
-    """Checks the status of a job"""
-    try:
-        if job_type == 'ANALYSIS':
-            response = textract.get_document_analysis(JobId=job_id)
-        else:  # TEXT_DETECTION
-            response = textract.get_document_text_detection(JobId=job_id)
-            
+        response = textract.get_document_analysis(JobId=job_id)
         status = response['JobStatus']
-        logger.info(f"Status of job {job_id}: {status}")
+        logger.info(f"Status do job {job_id}: {status}")
         return status
     except Exception as e:
-        logger.error(f"Error checking job status: {e}")
+        logger.error(f"Erro ao verificar status do job: {e}")
         return None
 
-def wait_for_job_completion(job_id, job_type='ANALYSIS', max_time=300):
-    """Waits for a job to complete, with timeout"""
-    logger.info(f"=== Starting job monitoring for {job_id} ({job_type}) ===")
+def wait_for_job_completion(job_id, max_time=300):
+    """Aguarda a conclusão de um job, com timeout"""
+    logger.info(f"=== Iniciando monitoramento de job para {job_id} ===")
     start_time = time.time()
-    status = check_job_status(job_id, job_type)
+    status = check_job_status(job_id)
     
-    progress_interval = 30  # Progress log every 30 seconds
+    progress_interval = 30  # Log de progresso a cada 30 segundos
     last_progress_time = start_time
     
     while status in ['SUBMITTED', 'IN_PROGRESS']:
-        # Check timeout
+        # Verificar timeout
         current_time = time.time()
         elapsed = current_time - start_time
         
         if elapsed > max_time:
-            logger.warning(f"Timeout waiting for job completion after {elapsed:.2f} seconds")
+            logger.warning(f"Timeout aguardando conclusão do job após {elapsed:.2f} segundos")
             return False
         
-        # Periodic progress log
+        # Log de progresso periódico
         if current_time - last_progress_time > progress_interval:
-            logger.info(f"Job {job_id} still in progress... ({elapsed:.2f} seconds elapsed, {(elapsed/max_time)*100:.1f}% of timeout)")
+            logger.info(f"Job {job_id} ainda em progresso... ({elapsed:.2f} segundos decorridos, {(elapsed/max_time)*100:.1f}% do timeout)")
             last_progress_time = current_time
             
-        # Wait and check again
+        # Aguardar e verificar novamente
         wait_time = 5
-        logger.debug(f"Job in progress. Checking again in {wait_time} seconds...")
+        logger.debug(f"Job em progresso. Verificando novamente em {wait_time} segundos...")
         time.sleep(wait_time)
-        status = check_job_status(job_id, job_type)
+        status = check_job_status(job_id)
     
     total_time = time.time() - start_time
     if status == 'SUCCEEDED':
-        logger.info(f"Job {job_id} completed successfully in {total_time:.2f} seconds")
+        logger.info(f"Job {job_id} concluído com sucesso em {total_time:.2f} segundos")
     else:
-        logger.error(f"Job {job_id} failed with status: {status} after {total_time:.2f} seconds")
+        logger.error(f"Job {job_id} falhou com status: {status} após {total_time:.2f} segundos")
     
     return status == 'SUCCEEDED'
 
-def get_complete_results(job_id, job_type='ANALYSIS'):
-    """Gets all results from a job, including all pages"""
-    logger.info(f"=== Getting complete results for job {job_id} ===")
-    if job_type == 'ANALYSIS':
-        get_results_function = textract.get_document_analysis
-    else:  # TEXT_DETECTION
-        get_results_function = textract.get_document_text_detection
+def get_complete_results(job_id):
+    """Obtém todos os resultados de um job, incluindo todas as páginas"""
+    logger.info(f"=== Obtendo resultados completos para o job {job_id} ===")
+    get_results_function = textract.get_document_analysis
     
-    # Get first page of results
+    # Obter primeira página de resultados
     start_time = time.time()
-    logger.info(f"Getting first page of results for job {job_id}")
+    logger.info(f"Obtendo primeira página de resultados para o job {job_id}")
     response = get_results_function(JobId=job_id)
     
-    # Collect all result pages
+    # Coletar todas as páginas de resultados
     all_responses = [response]
     next_token = response.get('NextToken')
     
     page_count = 1
     while next_token:
         page_count += 1
-        logger.info(f"Getting page {page_count} of results...")
+        logger.info(f"Obtendo página {page_count} de resultados...")
         response = get_results_function(JobId=job_id, NextToken=next_token)
         all_responses.append(response)
         next_token = response.get('NextToken')
     
     elapsed_time = time.time() - start_time
-    logger.info(f"Complete results obtained in {elapsed_time:.2f} seconds ({len(all_responses)} result pages)")
+    logger.info(f"Resultados completos obtidos em {elapsed_time:.2f} segundos ({len(all_responses)} páginas de resultado)")
     
-    # Add more details about the obtained data
+    # Adicionar mais detalhes sobre os dados obtidos
     doc_metadata = response.get('DocumentMetadata', {})
     if doc_metadata:
-        logger.info(f"Document metadata: {doc_metadata}")
+        logger.info(f"Metadados do documento: {doc_metadata}")
     
     return all_responses
 
 def save_json_response(responses, output_file):
-    """Saves the responses in JSON format"""
+    """Salva as respostas em formato JSON"""
     try:
-        # Save in JSON format (indented for readability)
+        # Salvar em formato JSON (indentado para legibilidade)
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(responses, f, indent=2, default=str)
         
-        logger.info(f"Response saved to: {output_file}")
+        logger.info(f"Resposta salva em: {output_file}")
         
-        # Additional information
+        # Informações adicionais
         num_blocks = sum(len(response.get('Blocks', [])) for response in responses)
-        logger.info(f"Total number of blocks in response: {num_blocks}")
+        logger.info(f"Número total de blocos na resposta: {num_blocks}")
         
-        # Count block types
+        # Contagem de tipos de blocos
         block_types = {}
         for response in responses:
             for block in response.get('Blocks', []):
                 block_type = block.get('BlockType', 'UNKNOWN')
                 block_types[block_type] = block_types.get(block_type, 0) + 1
         
-        logger.info("Found block types:")
+        logger.info("Tipos de blocos encontrados:")
         for block_type, count in block_types.items():
             logger.info(f"  - {block_type}: {count}")
         
         return True
     except Exception as e:
-        logger.error(f"Error saving JSON response: {e}")
+        logger.error(f"Erro ao salvar resposta JSON: {e}")
         return False
 
 def process_document(file_path):
-    """Processes a document and saves the JSON responses"""
+    """Processa um documento e salva apenas o JSON de análise"""
     logger.info(f"========================================")
-    logger.info(f"=== STARTING DOCUMENT PROCESSING ===")
+    logger.info(f"=== INICIANDO PROCESSAMENTO DE DOCUMENTO ===")
     logger.info(f"========================================")
-    logger.info(f"File: {file_path}")
-    process_start_time = time.time()
+    logger.info(f"Arquivo: {file_path}")
     
-    # Upload to S3
-    s3_object_name = upload_to_s3(file_path)
-    if not s3_object_name:
-        logger.error("Failed to upload to S3")
-        return False
-    
-    # Get the directory where the file is located to save results there
+    # Verificar se o arquivo já foi processado
     output_dir = os.path.dirname(file_path)
     base_filename = os.path.splitext(os.path.basename(file_path))[0]
-    logger.info(f"Base file name: {base_filename}")
-    logger.info(f"Saving results to: {output_dir}")
+    analysis_output = os.path.join(output_dir, f"{base_filename}_analysis.json")
     
-    # Start jobs
-    logger.info("=== Starting jobs in Textract ===")
+    if os.path.exists(analysis_output):
+        logger.info(f"Arquivo de análise já existe: {analysis_output}")
+        logger.info(f"Pulando processamento para evitar duplicação.")
+        return True
+    
+    process_start_time = time.time()
+    
+    # Upload para S3
+    s3_object_name = upload_to_s3(file_path)
+    if not s3_object_name:
+        logger.error("Falha ao fazer upload para S3")
+        return False
+    
+    # Obter o diretório onde o arquivo está localizado para salvar resultados
+    logger.info(f"Nome base do arquivo: {base_filename}")
+    logger.info(f"Salvando resultados em: {output_dir}")
+    
+    # Iniciar apenas o job de análise de documento
+    logger.info("=== Iniciando job no Textract ===")
     analysis_job_id = start_document_analysis(s3_object_name)
-    text_job_id = start_text_detection(s3_object_name)
     
-    if not analysis_job_id or not text_job_id:
-        logger.error("Failed to start jobs")
+    if not analysis_job_id:
+        logger.error("Falha ao iniciar job de análise")
         return False
     
     success = True
     
-    # Document analysis (tables, forms)
-    logger.info("=== Processing document analysis job ===")
-    if wait_for_job_completion(analysis_job_id, 'ANALYSIS'):
-        analysis_responses = get_complete_results(analysis_job_id, 'ANALYSIS')
-        analysis_output = os.path.join(output_dir, f"{base_filename}_analysis.json")
+    # Processamento de análise de documento (tabelas, formulários)
+    logger.info("=== Processando job de análise de documento ===")
+    if wait_for_job_completion(analysis_job_id):
+        analysis_responses = get_complete_results(analysis_job_id)
         if not save_json_response(analysis_responses, analysis_output):
             success = False
     else:
-        logger.error("Document analysis job failed or timed out")
-        success = False
-    
-    # Text detection
-    logger.info("=== Processing text detection job ===")
-    if wait_for_job_completion(text_job_id, 'TEXT_DETECTION'):
-        text_responses = get_complete_results(text_job_id, 'TEXT_DETECTION')
-        text_output = os.path.join(output_dir, f"{base_filename}_text.json")
-        if not save_json_response(text_responses, text_output):
-            success = False
-    else:
-        logger.error("Text detection job failed or timed out")
+        logger.error("Job de análise de documento falhou ou expirou")
         success = False
     
     total_process_time = time.time() - process_start_time
     logger.info(f"========================================")
-    logger.info(f"=== END OF DOCUMENT PROCESSING ===")
-    logger.info(f"Total processing time: {total_process_time:.2f} seconds ({total_process_time/60:.2f} minutes)")
-    logger.info(f"Status: {'Success' if success else 'Failure'}")
+    logger.info(f"=== FIM DO PROCESSAMENTO DE DOCUMENTO ===")
+    logger.info(f"Tempo total de processamento: {total_process_time:.2f} segundos ({total_process_time/60:.2f} minutos)")
+    logger.info(f"Status: {'Sucesso' if success else 'Falha'}")
     logger.info(f"========================================")
     
     return success
 
 def process_all_folders():
-    """Processes all PDF files following the pattern [number]_Bula.pdf in subdirectories"""
-    logger.info("Starting processing of all folders...")
+    """Processa todos os arquivos PDF seguindo o padrão [número]_Bula.pdf em subdiretórios"""
+    logger.info("Iniciando processamento de todas as pastas...")
     
-    # Get list of directories (excluding special ones)
+    # Obter lista de diretórios (excluindo os especiais)
     root_dir = os.getcwd()
     dirs = [d for d in os.listdir(root_dir) 
             if os.path.isdir(os.path.join(root_dir, d)) 
             and not d.startswith('.') 
             and d not in ['venv', 'html_output', 'resultados_json', 'resultados_async']]
     
-    logger.info(f"Found {len(dirs)} folders to process")
+    logger.info(f"Encontradas {len(dirs)} pastas para processar")
     
     successful_dirs = 0
     failed_dirs = 0
@@ -292,65 +262,64 @@ def process_all_folders():
     
     for dir_name in dirs:
         dir_path = os.path.join(root_dir, dir_name)
-        logger.info(f"Processing folder: {dir_name}")
+        logger.info(f"Processando pasta: {dir_name}")
         
-        # Look for files following the pattern [number]_Bula.pdf
+        # Procurar arquivos seguindo o padrão [número]_Bula.pdf
         pdf_pattern = os.path.join(dir_path, "*_Bula.pdf")
         matching_files = glob.glob(pdf_pattern)
         
         if not matching_files:
-            logger.warning(f"No files found with pattern '*_Bula.pdf' in {dir_name}")
+            logger.warning(f"Nenhum arquivo encontrado com padrão '*_Bula.pdf' em {dir_name}")
             skipped_dirs += 1
             continue
         
         if len(matching_files) > 1:
-            logger.warning(f"Multiple files found in {dir_name}, using the first: {matching_files}")
+            logger.warning(f"Múltiplos arquivos encontrados em {dir_name}, usando o primeiro: {matching_files}")
             
         pdf_file = matching_files[0]
-        logger.info(f"File found: {pdf_file}")
+        logger.info(f"Arquivo encontrado: {pdf_file}")
         
-        # Check if JSONs already exist to avoid reprocessing
+        # Verificar se o JSON de análise já existe para evitar reprocessamento
         base_filename = os.path.splitext(os.path.basename(pdf_file))[0]
         analysis_json = os.path.join(dir_path, f"{base_filename}_analysis.json")
-        text_json = os.path.join(dir_path, f"{base_filename}_text.json")
         
-        if os.path.exists(analysis_json) and os.path.exists(text_json):
-            logger.info(f"JSON files already exist for {base_filename}, skipping processing")
+        if os.path.exists(analysis_json):
+            logger.info(f"Arquivo JSON de análise já existe para {base_filename}, pulando processamento")
             skipped_dirs += 1
             continue
         
-        # Process document
+        # Processar documento
         if process_document(pdf_file):
             successful_dirs += 1
-            logger.info(f"Processing of {dir_name} completed successfully")
+            logger.info(f"Processamento de {dir_name} concluído com sucesso")
         else:
             failed_dirs += 1
-            logger.error(f"Failed to process {dir_name}")
+            logger.error(f"Falha ao processar {dir_name}")
     
-    logger.info("=== PROCESSING SUMMARY ===")
-    logger.info(f"Total folders: {len(dirs)}")
-    logger.info(f"Processed successfully: {successful_dirs}")
-    logger.info(f"Failed processing: {failed_dirs}")
-    logger.info(f"Folders skipped: {skipped_dirs}")
+    logger.info("=== RESUMO DO PROCESSAMENTO ===")
+    logger.info(f"Total de pastas: {len(dirs)}")
+    logger.info(f"Processadas com sucesso: {successful_dirs}")
+    logger.info(f"Falha no processamento: {failed_dirs}")
+    logger.info(f"Pastas puladas: {skipped_dirs}")
     
     return successful_dirs > 0 and failed_dirs == 0
 
 def main():
-    # If a specific file is provided, process only it
+    # Se um arquivo específico for fornecido, processar apenas ele
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
         if not os.path.exists(file_path):
-            logger.error(f"File not found: {file_path}")
+            logger.error(f"Arquivo não encontrado: {file_path}")
             return False
         return process_document(file_path)
     
-    # Otherwise, process all folders
+    # Caso contrário, processar todas as pastas
     return process_all_folders()
 
 if __name__ == "__main__":
     success = main()
     if success:
-        print("Processing completed successfully!")
+        print("Processamento concluído com sucesso!")
     else:
-        print("Errors occurred during processing.")
+        print("Ocorreram erros durante o processamento.")
         sys.exit(1) 

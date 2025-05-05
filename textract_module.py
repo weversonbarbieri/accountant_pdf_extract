@@ -50,6 +50,18 @@ def processar_pdf(arquivo_pdf):
         if not arquivo_pdf.lower().endswith('.pdf'):
             resultado['mensagem'] = f"O arquivo {arquivo_pdf} não é um PDF"
             return resultado
+        
+        # Verificar se o arquivo já foi processado
+        dir_pdf = os.path.dirname(arquivo_pdf)
+        base_nome = os.path.splitext(os.path.basename(arquivo_pdf))[0]
+        arquivo_analise = os.path.join(dir_pdf, f"{base_nome}_analysis.json")
+        
+        if os.path.exists(arquivo_analise):
+            logger.info(f"Arquivo de análise já existe: {arquivo_analise}")
+            resultado['sucesso'] = True
+            resultado['mensagem'] = "Arquivo já processado anteriormente"
+            resultado['arquivos_json'] = [arquivo_analise]
+            return resultado
             
         # Capturar saída do logger
         import io
@@ -67,16 +79,9 @@ def processar_pdf(arquivo_pdf):
         logger.removeHandler(log_handler)
         
         # Verificar os arquivos JSON gerados
-        dir_pdf = os.path.dirname(arquivo_pdf)
-        base_nome = os.path.splitext(os.path.basename(arquivo_pdf))[0]
-        arquivo_analise = os.path.join(dir_pdf, f"{base_nome}_analysis.json")
-        arquivo_texto = os.path.join(dir_pdf, f"{base_nome}_text.json")
-        
         arquivos_gerados = []
         if os.path.exists(arquivo_analise):
             arquivos_gerados.append(arquivo_analise)
-        if os.path.exists(arquivo_texto):
-            arquivos_gerados.append(arquivo_texto)
         
         # Construir resultado
         resultado['sucesso'] = sucesso

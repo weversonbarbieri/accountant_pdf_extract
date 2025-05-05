@@ -32,7 +32,15 @@ for folder in [UPLOAD_FOLDER, TEMPLATE_FOLDER, STATIC_FOLDER,
 
 # Verificar arquivos JSON existentes no diretório
 def obter_arquivos_json():
-    return glob.glob("*.json")
+    # Buscar arquivos JSON na pasta uploads
+    uploads_jsons = glob.glob(os.path.join(UPLOAD_FOLDER, "*_analysis.json"))
+    uploads_jsons = [os.path.basename(arquivo) for arquivo in uploads_jsons]
+    
+    # Buscar também na raiz para compatibilidade
+    root_jsons = glob.glob("*_analysis.json")
+    
+    # Combinar resultados, evitando duplicatas
+    return list(set(uploads_jsons + root_jsons))
 
 # Verificar se o servidor já está em execução
 def servidor_em_execucao(porta=5000):
@@ -48,6 +56,176 @@ def servidor_em_execucao(porta=5000):
 def index():
     arquivos_json = obter_arquivos_json()
     return render_template('index.html', arquivos_json=arquivos_json)
+
+# Rota para teste de seleção múltipla
+@app.route('/teste-selecao-multipla')
+def teste_selecao_multipla():
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Teste de Seleção Múltipla</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+            }
+            button {
+                padding: 8px 15px;
+                background-color: #4285f4;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            #selected-files {
+                margin-top: 20px;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                min-height: 100px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Teste de Seleção Múltipla de Arquivos</h1>
+        
+        <div class="form-group">
+            <label for="pdf-upload">Selecione um ou mais arquivos PDF:</label>
+            <input type="file" id="pdf-upload" name="pdf_files[]" accept=".pdf" multiple>
+            <button type="button" id="select-btn">Selecionar PDFs</button>
+        </div>
+        
+        <div id="selected-files">
+            <p>Arquivos selecionados aparecerão aqui.</p>
+        </div>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const fileInput = document.getElementById('pdf-upload');
+                const selectBtn = document.getElementById('select-btn');
+                const selectedFiles = document.getElementById('selected-files');
+                
+                selectBtn.addEventListener('click', function() {
+                    fileInput.click();
+                });
+                
+                fileInput.addEventListener('change', function() {
+                    selectedFiles.innerHTML = '';
+                    
+                    if (this.files.length > 0) {
+                        const header = document.createElement('h3');
+                        header.textContent = `${this.files.length} arquivo(s) selecionado(s):`;
+                        selectedFiles.appendChild(header);
+                        
+                        const list = document.createElement('ul');
+                        
+                        for (let i = 0; i < this.files.length; i++) {
+                            const item = document.createElement('li');
+                            item.textContent = this.files[i].name;
+                            list.appendChild(item);
+                        }
+                        
+                        selectedFiles.appendChild(list);
+                    } else {
+                        selectedFiles.innerHTML = '<p>Nenhum arquivo selecionado.</p>';
+                    }
+                });
+            });
+        </script>
+    </body>
+    </html>
+    '''
+
+# Adicionar nova rota para teste com script especializado
+@app.route('/teste-pdf')
+def teste_pdf():
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Teste de Seleção PDF</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+            }
+            button {
+                padding: 8px 15px;
+                background-color: #4285f4;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            .file-input-wrapper {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .file-input-placeholder {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+            }
+            .selected-file-list {
+                margin-top: 20px;
+                padding: 15px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+            }
+            .selected-file-list ul {
+                margin-top: 10px;
+                padding-left: 20px;
+            }
+            .selected-file-list li {
+                margin-bottom: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Teste de Seleção PDF</h1>
+        
+        <form id="pdf-upload-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="pdf-file-upload">Selecione um ou mais arquivos PDF:</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="pdf-file-upload" name="pdf_files[]" accept=".pdf" multiple style="display: none;">
+                    <div class="file-input-placeholder" id="pdf-filename">Nenhum arquivo selecionado</div>
+                    <button type="button" id="pdf-select-btn">Selecionar PDFs</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button type="submit">Processar Arquivos</button>
+            </div>
+        </form>
+        
+        <script src="/static/js/file_select_test.js"></script>
+    </body>
+    </html>
+    '''
 
 # Função para processar arquivo com captura de saída
 def processar_com_captura(arquivo):
@@ -123,18 +301,27 @@ def processar():
     resultados = []
     
     for arquivo in arquivos_selecionados:
-        # Verificar se o arquivo existe antes de processar
-        if not os.path.isfile(arquivo):
-            resultados.append({
-                'arquivo': arquivo,
-                'status': 'Erro',
-                'mensagem': 'Arquivo não encontrado',
-                'tipo_erro': 'arquivo_nao_encontrado'
-            })
-            continue
-                
-        # Processar arquivo com captura de saída
-        resultado = processar_com_captura(arquivo)
+        # Primeiro, procurar na pasta uploads
+        caminho_arquivo = os.path.join(UPLOAD_FOLDER, arquivo)
+        
+        # Se não existir na pasta uploads, tentar na raiz (para compatibilidade)
+        if not os.path.isfile(caminho_arquivo):
+            if os.path.isfile(arquivo):
+                caminho_arquivo = arquivo
+            else:
+                resultados.append({
+                    'arquivo': arquivo,
+                    'status': 'Erro',
+                    'mensagem': 'Arquivo não encontrado',
+                    'tipo_erro': 'arquivo_nao_encontrado'
+                })
+                continue
+        
+        # Processar arquivo com caminho completo
+        resultado = processar_com_captura(caminho_arquivo)
+        
+        # Adicionar nome do arquivo original para exibição
+        resultado['arquivo_exibicao'] = arquivo
         resultados.append(resultado)
     
     return jsonify({'resultados': resultados})
@@ -142,17 +329,17 @@ def processar():
 # Rota para processar arquivos PDF
 @app.route('/processar-pdf', methods=['POST'])
 def processar_pdf():
-    if 'pdf_file' not in request.files:
+    if 'pdf_files[]' not in request.files:
         return jsonify({
             'sucesso': False,
             'mensagem': 'Nenhum arquivo enviado'
         })
     
-    pdf_file = request.files['pdf_file']
-    if pdf_file.filename == '':
+    pdf_files = request.files.getlist('pdf_files[]')
+    if not pdf_files or pdf_files[0].filename == '':
         return jsonify({
             'sucesso': False,
-            'mensagem': 'Nome de arquivo inválido'
+            'mensagem': 'Nomes de arquivos inválidos'
         })
     
     # Verificar a configuração AWS antes de processar
@@ -163,31 +350,42 @@ def processar_pdf():
             'mensagem': mensagem_config
         })
     
-    # Salvar o arquivo PDF na pasta uploads
-    pdf_path = os.path.join(UPLOAD_FOLDER, pdf_file.filename)
-    pdf_file.save(pdf_path)
+    resultados = []
     
-    # Processar o PDF
-    try:
-        resultado = textract_module.processar_pdf(pdf_path)
+    for pdf_file in pdf_files:
+        # Salvar o arquivo PDF na pasta uploads
+        pdf_path = os.path.join(UPLOAD_FOLDER, pdf_file.filename)
+        pdf_file.save(pdf_path)
         
-        # Se o processamento foi bem-sucedido, retornar informações sobre os arquivos JSON gerados
-        if resultado['sucesso']:
-            # Adicionar informações extras ao resultado
-            resultado['nome_arquivo'] = pdf_file.filename
+        # Processar o PDF
+        try:
+            resultado = textract_module.processar_pdf(pdf_path)
             
-            # Se houver arquivos JSON gerados, mostrar opções para processá-los
-            arquivos_json = resultado['arquivos_json']
-            resultado['arquivos_disponiveis'] = [os.path.basename(arquivo) for arquivo in arquivos_json]
-        
-        return jsonify(resultado)
-        
-    except Exception as e:
-        return jsonify({
-            'sucesso': False,
-            'mensagem': f'Erro ao processar PDF: {str(e)}',
-            'detalhes': traceback.format_exc()
-        })
+            # Se o processamento foi bem-sucedido, retornar informações sobre os arquivos JSON gerados
+            if resultado['sucesso']:
+                # Adicionar informações extras ao resultado
+                resultado['nome_arquivo'] = pdf_file.filename
+                
+                # Se houver arquivos JSON gerados, mostrar opções para processá-los
+                arquivos_json = resultado['arquivos_json']
+                resultado['arquivos_disponiveis'] = [os.path.basename(arquivo) for arquivo in arquivos_json]
+            
+            resultados.append(resultado)
+            
+        except Exception as e:
+            resultados.append({
+                'sucesso': False,
+                'nome_arquivo': pdf_file.filename,
+                'mensagem': f'Erro ao processar PDF: {str(e)}',
+                'detalhes': traceback.format_exc()
+            })
+    
+    return jsonify({
+        'sucesso': True,
+        'multiplos_arquivos': True,
+        'total_processados': len(resultados),
+        'resultados': resultados
+    })
 
 # Rota para servir arquivos estáticos
 @app.route('/static/<path:path>')
@@ -196,9 +394,29 @@ def serve_static(path):
 
 # Criar os arquivos estáticos necessários
 def criar_arquivos_estaticos():
-    # Criar HTML
-    with open(os.path.join(TEMPLATE_FOLDER, 'index.html'), 'w', encoding='utf-8') as f:
-        f.write('''<!DOCTYPE html>
+    # Verificar e criar as pastas necessárias
+    for folder in [TEMPLATE_FOLDER, STATIC_FOLDER, 
+                  os.path.join(STATIC_FOLDER, 'css'), 
+                  os.path.join(STATIC_FOLDER, 'js')]:
+        os.makedirs(folder, exist_ok=True)
+    
+    # Caminhos para os arquivos estáticos
+    html_path = os.path.join(TEMPLATE_FOLDER, 'index.html')
+    css_path = os.path.join(STATIC_FOLDER, 'css', 'style.css')
+    js_path = os.path.join(STATIC_FOLDER, 'js', 'script.js')
+    
+    # Verificar se os arquivos já existem
+    html_exists = os.path.exists(html_path)
+    css_exists = os.path.exists(css_path)
+    js_exists = os.path.exists(js_path)
+    
+    if not html_exists or not css_exists or not js_exists:
+        print("Criando arquivos estáticos necessários...")
+        
+        # Criar HTML se não existir
+        if not html_exists:
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write('''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -216,16 +434,16 @@ def criar_arquivos_estaticos():
         
         <main>
             <div class="tabs">
-                <button class="tab-btn active" data-tab="json-tab">
+                <button class="tab-btn" data-tab="json-tab" id="json-tab-btn" style="display: none;">
                     <i class="fas fa-file-code"></i> Arquivos JSON
                 </button>
-                <button class="tab-btn" data-tab="pdf-tab">
+                <button class="tab-btn active" data-tab="pdf-tab">
                     <i class="fas fa-file-pdf"></i> Extrair texto de PDF
                 </button>
             </div>
             
             <!-- Tab de processamento JSON -->
-            <div id="json-tab" class="tab-content active">
+            <div id="json-tab" class="tab-content">
                 <div class="card">
                     <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
                     <div class="dropzone" id="drop-area">
@@ -303,7 +521,7 @@ def criar_arquivos_estaticos():
             </div>
             
             <!-- Tab de processamento PDF -->
-            <div id="pdf-tab" class="tab-content">
+            <div id="pdf-tab" class="tab-content active">
                 <div class="card">
                     <h2><i class="fas fa-file-pdf"></i> Processamento de PDF com Amazon Textract</h2>
                     <div class="alert info">
@@ -314,26 +532,36 @@ def criar_arquivos_estaticos():
                         </div>
                     </div>
                     
+                    <p class="workflow-description">
+                        <strong>Fluxo de trabalho:</strong>
+                        <ol>
+                            <li>Selecione um ou mais arquivos PDF para processar</li>
+                            <li>O Amazon Textract extrairá o texto e a estrutura dos documentos</li>
+                            <li>Os resultados serão salvos como arquivos JSON</li>
+                            <li>Você poderá selecionar um dos arquivos JSON gerados para criar relatórios Excel/CSV</li>
+                        </ol>
+                    </p>
+                    
                     <form id="pdf-upload-form" enctype="multipart/form-data">
                         <div class="form-group">
-                            <label for="pdf-file-upload">Selecione um arquivo PDF:</label>
+                            <label for="pdf-file-upload">Selecione arquivos PDF:</label>
                             <div class="file-input-wrapper">
-                                <input type="file" id="pdf-file-upload" name="pdf_file" accept=".pdf">
+                                <input type="file" id="pdf-file-upload" name="pdf_files[]" accept=".pdf" multiple>
                                 <div class="file-input-placeholder" id="pdf-filename">Nenhum arquivo selecionado</div>
-                                <button type="button" class="btn secondary" id="pdf-select-btn">Selecionar PDF</button>
+                                <button type="button" class="btn secondary" id="pdf-select-btn">Selecionar PDFs</button>
                             </div>
                         </div>
                         
                         <div class="form-group">
                             <button type="submit" class="btn primary" id="pdf-process-btn">
-                                <i class="fas fa-cloud-upload-alt"></i> Processar PDF com Textract
+                                <i class="fas fa-cloud-upload-alt"></i> Processar PDFs com Textract
                             </button>
                         </div>
                     </form>
                     
                     <div id="pdf-processing-indicator" class="hidden">
                         <div class="spinner"></div>
-                        <p>Processando PDF com Amazon Textract, isso pode levar alguns minutos...</p>
+                        <p>Processando PDFs com Amazon Textract, isso pode levar alguns minutos...</p>
                         <div class="progress-bar-container">
                             <div class="progress-bar" id="pdf-progress-bar" style="width: 0%"></div>
                         </div>
@@ -369,1442 +597,23 @@ def criar_arquivos_estaticos():
     <script src="/static/js/script.js"></script>
 </body>
 </html>''')
+            print(f"Arquivo HTML criado: {html_path}")
     
-    # Criar CSS
-    with open(os.path.join(STATIC_FOLDER, 'css', 'style.css'), 'w', encoding='utf-8') as f:
-        f.write('''/* Variáveis globais */
-:root {
-    --primary-color: #3498db;
-    --primary-dark: #2980b9;
-    --secondary-color: #2ecc71;
-    --secondary-dark: #27ae60;
-    --error-color: #e74c3c;
-    --warning-color: #f39c12;
-    --info-color: #3498db;
-    --dark-color: #2c3e50;
-    --light-color: #ecf0f1;
-    --border-color: #ddd;
-    --hover-color: #f5f5f5;
-    --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    --transition-speed: 0.3s;
-}
-
-/* Estilos gerais */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--light-color);
-    color: var(--dark-color);
-    line-height: 1.6;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding: 20px 0;
-}
-
-header h1 {
-    color: var(--primary-color);
-    margin-bottom: 10px;
-    font-size: 2.2rem;
-}
-
-header p {
-    color: var(--dark-color);
-    font-size: 1.1rem;
-}
-
-/* Tabs */
-.tabs {
-    display: flex;
-    margin-bottom: 25px;
-    border-bottom: 2px solid var(--border-color);
-    background-color: white;
-    border-radius: 8px 8px 0 0;
-    overflow: hidden;
-    box-shadow: var(--card-shadow);
-}
-
-.tab-btn {
-    flex: 1;
-    padding: 15px;
-    border: none;
-    background: none;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--dark-color);
-    cursor: pointer;
-    transition: all var(--transition-speed) ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.tab-btn i {
-    margin-right: 8px;
-}
-
-.tab-btn:hover {
-    background-color: var(--hover-color);
-}
-
-.tab-btn.active {
-    color: var(--primary-color);
-    border-bottom: 3px solid var(--primary-color);
-    background-color: rgba(52, 152, 219, 0.05);
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-/* Cards */
-.card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: var(--card-shadow);
-    padding: 25px;
-    margin-bottom: 30px;
-    transition: box-shadow 0.3s ease;
-}
-
-.card:hover {
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-}
-
-.card h2 {
-    color: var(--dark-color);
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    font-size: 1.5rem;
-}
-
-.card h2 i {
-    margin-right: 10px;
-    color: var(--primary-color);
-}
-
-/* Alertas */
-.alert {
-    display: flex;
-    padding: 15px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-    align-items: flex-start;
-}
-
-.alert i {
-    font-size: 1.5rem;
-    margin-right: 15px;
-    flex-shrink: 0;
-}
-
-.alert div {
-    flex: 1;
-}
-
-.alert p {
-    margin-bottom: 8px;
-}
-
-.alert p:last-child {
-    margin-bottom: 0;
-}
-
-.info {
-    background-color: rgba(52, 152, 219, 0.1);
-    border-left: 4px solid var(--info-color);
-}
-
-.info i {
-    color: var(--info-color);
-}
-
-.warning {
-    background-color: rgba(243, 156, 18, 0.1);
-    border-left: 4px solid var(--warning-color);
-}
-
-.warning i {
-    color: var(--warning-color);
-}
-
-.error {
-    background-color: rgba(231, 76, 60, 0.1);
-    border-left: 4px solid var(--error-color);
-}
-
-.error i {
-    color: var(--error-color);
-}
-
-/* Form groups */
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-.file-input-wrapper {
-    display: flex;
-    align-items: center;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 8px 12px;
-    background-color: white;
-}
-
-.file-input-wrapper input[type="file"] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-}
-
-.file-input-placeholder {
-    flex: 1;
-    color: #777;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* Progress bar */
-.progress-bar-container {
-    width: 100%;
-    height: 8px;
-    background-color: #f1f1f1;
-    border-radius: 4px;
-    margin-top: 15px;
-    overflow: hidden;
-}
-
-.progress-bar {
-    height: 100%;
-    background-color: var(--primary-color);
-    width: 0%;
-    transition: width 0.3s ease;
-}
-
-/* Dropzone */
-.dropzone {
-    border: 2px dashed var(--border-color);
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
-    transition: all var(--transition-speed) ease;
-    margin-bottom: 20px;
-    background-color: #fbfbfb;
-}
-
-.dropzone.highlight {
-    border-color: var(--primary-color);
-    background-color: rgba(52, 152, 219, 0.05);
-}
-
-.dropzone-content {
-    padding: 30px 20px;
-}
-
-.dropzone i {
-    font-size: 3rem;
-    color: var(--primary-color);
-    margin-bottom: 15px;
-}
-
-.dropzone p {
-    font-size: 1.2rem;
-    margin-bottom: 10px;
-    color: var(--dark-color);
-}
-
-.dropzone span {
-    display: block;
-    margin: 10px 0;
-    color: #777;
-}
-
-.file-preview {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px dashed var(--border-color);
-    display: none;
-}
-
-.file-preview.active {
-    display: block;
-}
-
-.file-item-preview {
-    display: flex;
-    align-items: center;
-    padding: 10px;
-    margin-bottom: 8px;
-    background-color: #f9f9f9;
-    border-radius: 4px;
-    justify-content: space-between;
-}
-
-.file-item-preview .file-name {
-    display: flex;
-    align-items: center;
-}
-
-.file-item-preview .file-name i {
-    font-size: 1.2rem;
-    margin-right: 10px;
-    color: var(--primary-color);
-}
-
-.file-remove {
-    background: none;
-    border: none;
-    color: var(--error-color);
-    cursor: pointer;
-    font-size: 1.2rem;
-    transition: color var(--transition-speed) ease;
-}
-
-.file-remove:hover {
-    color: #c0392b;
-}
-
-.upload-controls {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 10px;
-}
-
-/* Lista de arquivos */
-.file-list {
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-bottom: 20px;
-    background-color: white;
-}
-
-.file-list-header {
-    display: flex;
-    padding: 12px 15px;
-    background-color: #f9f9f9;
-    border-bottom: 1px solid var(--border-color);
-    font-weight: bold;
-}
-
-.file-select-all {
-    width: 30px;
-    margin-right: 10px;
-}
-
-.file-name-header {
-    flex: 1;
-}
-
-.file-actions-header {
-    width: 80px;
-    text-align: center;
-}
-
-.file-item {
-    display: flex;
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--border-color);
-    align-items: center;
-    transition: background-color var(--transition-speed) ease;
-}
-
-.file-item:last-child {
-    border-bottom: none;
-}
-
-.file-item:hover {
-    background-color: var(--hover-color);
-}
-
-.file-item input[type="checkbox"] {
-    margin-right: 10px;
-}
-
-.file-label {
-    flex: 1;
-    cursor: pointer;
-}
-
-.file-actions {
-    display: flex;
-    justify-content: flex-end;
-    width: 80px;
-}
-
-.btn-icon {
-    background: none;
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all var(--transition-speed) ease;
-    color: var(--dark-color);
-}
-
-.btn-icon:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: var(--error-color);
-}
-
-.delete-file {
-    color: #777;
-}
-
-.delete-file:hover {
-    color: var(--error-color);
-}
-
-.no-files, .no-results {
-    padding: 25px;
-    text-align: center;
-    color: #777;
-    font-style: italic;
-}
-
-/* Botões */
-.btn {
-    padding: 10px 18px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all var(--transition-speed) ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 500;
-}
-
-.btn i {
-    margin-right: 8px;
-}
-
-.primary {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-.primary:hover {
-    background-color: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.secondary {
-    background-color: var(--secondary-color);
-    color: white;
-}
-
-.secondary:hover {
-    background-color: var(--secondary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.actions {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 20px;
-}
-
-/* Resultados */
-.results-card {
-    min-height: 200px;
-}
-
-#processing-indicator,
-#pdf-processing-indicator {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 30px;
-}
-
-.spinner {
-    border: 4px solid rgba(0, 0, 0, 0.1);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border-left-color: var(--primary-color);
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
-}
-
-.result-item {
-    padding: 18px;
-    margin-bottom: 15px;
-    border-radius: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    transition: transform var(--transition-speed) ease;
-}
-
-.result-item:hover {
-    transform: translateY(-2px);
-}
-
-.result-success {
-    background-color: rgba(46, 204, 113, 0.1);
-    border-left: 4px solid var(--secondary-color);
-}
-
-.result-error {
-    background-color: rgba(231, 76, 60, 0.1);
-    border-left: 4px solid var(--error-color);
-}
-
-.result-warning {
-    background-color: rgba(243, 156, 18, 0.1);
-    border-left: 4px solid var(--warning-color);
-}
-
-.status-badge {
-    display: inline-block;
-    padding: 5px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: bold;
-    color: white;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.badge-success {
-    background-color: var(--secondary-color);
-}
-
-.badge-error {
-    background-color: var(--error-color);
-}
-
-.badge-warning {
-    background-color: var(--warning-color);
-}
-
-.error-details {
-    margin-top: 12px;
-    padding: 12px;
-    background-color: #f9f9f9;
-    border-radius: 6px;
-    font-size: 13px;
-    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
-}
-
-/* PDF processing results */
-.pdf-result {
-    margin-top: 20px;
-    padding: 20px;
-    border-radius: 8px;
-    background-color: #f9f9f9;
-}
-
-.pdf-result-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.pdf-result-files {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: #fff;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-}
-
-.pdf-result-file {
-    display: flex;
-    align-items: center;
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-}
-
-.pdf-result-file:last-child {
-    border-bottom: none;
-}
-
-.pdf-result-file i {
-    margin-right: 10px;
-    color: var(--primary-color);
-}
-
-.info-text {
-    margin-bottom: 15px;
-    color: #555;
-}
-
-/* Modal de confirmação */
-.modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
-}
-
-.modal-backdrop.active {
-    opacity: 1;
-    visibility: visible;
-}
-
-.modal {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-    width: 90%;
-    max-width: 500px;
-    padding: 25px;
-    transform: translateY(-20px);
-    transition: all 0.3s ease;
-}
-
-.modal-backdrop.active .modal {
-    transform: translateY(0);
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.modal-header i {
-    color: var(--warning-color);
-    font-size: 24px;
-    margin-right: 15px;
-}
-
-.modal-header h3 {
-    font-size: 1.2rem;
-    color: var(--dark-color);
-}
-
-.modal-body {
-    margin-bottom: 20px;
-    color: #555;
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.btn-modal-cancel {
-    background-color: #f1f1f1;
-    color: #555;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.btn-modal-cancel:hover {
-    background-color: #e1e1e1;
-}
-
-.btn-modal-confirm {
-    background-color: var(--error-color);
-    color: white;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.btn-modal-confirm:hover {
-    background-color: #c0392b;
-}
-
-/* Utilitários */
-.hidden {
-    display: none !important;
-}
-
-/* Animações */
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Footer */
-footer {
-    text-align: center;
-    margin-top: 40px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-color);
-    color: #777;
-}
-
-/* Responsivo */
-@media (max-width: 768px) {
-    .container {
-        padding: 15px;
-    }
-    
-    .card {
-        padding: 15px;
-    }
-    
-    .actions {
-        flex-direction: column;
-    }
-    
-    .btn {
-        width: 100%;
-        margin-bottom: 10px;
-    }
-    
-    .result-item {
-        flex-direction: column;
-    }
-    
-    .result-item > div:last-child {
-        margin-top: 10px;
-    }
-}''')
-    
-    # Criar JavaScript
-    with open(os.path.join(STATIC_FOLDER, 'js', 'script.js'), 'w', encoding='utf-8') as f:
-        f.write('''document.addEventListener('DOMContentLoaded', function() {
-    // Elementos da interface principal
-    const selectAllCheckbox = document.getElementById('select-all');
-    const fileCheckboxes = document.querySelectorAll('.file-checkbox');
-    const processButton = document.getElementById('process-button');
-    const refreshButton = document.getElementById('refresh-button');
-    const uploadButton = document.getElementById('upload-button');
-    const clearButton = document.getElementById('clear-button');
-    const fileUpload = document.getElementById('file-upload');
-    const processingIndicator = document.getElementById('processing-indicator');
-    const resultsContainer = document.getElementById('results');
-    const dropArea = document.getElementById('drop-area');
-    const filePreview = document.getElementById('file-preview');
-    const deleteButtons = document.querySelectorAll('.delete-file');
-    
-    // Elementos das tabs
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    // Elementos da tab de PDF
-    const pdfForm = document.getElementById('pdf-upload-form');
-    const pdfFileUpload = document.getElementById('pdf-file-upload');
-    const pdfFilename = document.getElementById('pdf-filename');
-    const pdfSelectBtn = document.getElementById('pdf-select-btn');
-    const pdfProcessingIndicator = document.getElementById('pdf-processing-indicator');
-    const pdfResults = document.getElementById('pdf-results');
-    const jsonFilesFromPdf = document.getElementById('json-files-from-pdf');
-    const pdfJsonFiles = document.getElementById('pdf-json-files');
-    const processPdfJsonBtn = document.getElementById('process-pdf-json-btn');
-    
-    // Manipulação de tabs
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            // Remover classe active de todos os botões e conteúdos
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-            
-            // Adicionar classe active ao botão clicado
-            this.classList.add('active');
-            
-            // Mostrar o conteúdo correspondente à tab clicada
-            const tabId = this.getAttribute('data-tab');
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
-    
-    // Criar modal de confirmação
-    const modalHTML = `
-        <div class="modal-backdrop" id="confirm-modal">
-            <div class="modal">
-                <div class="modal-header">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <h3>Confirmar exclusão</h3>
-                </div>
-                <div class="modal-body">
-                    <p>Tem certeza que deseja excluir o arquivo <strong id="filename-to-delete"></strong>?</p>
-                    <p>Esta ação não pode ser desfeita.</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-modal-cancel" id="cancel-delete">Cancelar</button>
-                    <button class="btn-modal-confirm" id="confirm-delete">Excluir</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Adicionar modal ao body
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    const confirmModal = document.getElementById('confirm-modal');
-    const filenameToDelete = document.getElementById('filename-to-delete');
-    const cancelDeleteBtn = document.getElementById('cancel-delete');
-    const confirmDeleteBtn = document.getElementById('confirm-delete');
-    
-    let currentFileToDelete = '';
-    
-    // Array para armazenar os arquivos selecionados para upload
-    let selectedFiles = [];
-    
-    // Funções para Drag and Drop
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, preventDefaults, false);
-    });
-    
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, highlight, false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, unhighlight, false);
-    });
-    
-    function highlight() {
-        dropArea.classList.add('highlight');
-    }
-    
-    function unhighlight() {
-        dropArea.classList.remove('highlight');
-    }
-    
-    // Manipulador para soltar arquivos
-    dropArea.addEventListener('drop', handleDrop, false);
-    
-    function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        handleFiles(files);
-    }
-    
-    // Manipulador para selecionar arquivos manualmente
-    fileUpload.addEventListener('change', function() {
-        handleFiles(this.files);
-    });
-    
-    // Adicionar evento de exclusão a todos os botões de exclusão
-    deleteButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const filename = this.getAttribute('data-filename');
-            currentFileToDelete = filename;
-            filenameToDelete.textContent = filename;
-            confirmModal.classList.add('active');
-        });
-    });
-    
-    // Função para excluir arquivo
-    function deleteFile(filename) {
-        fetch('/excluir-arquivo', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ arquivo: filename })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Recarregar a página para atualizar a lista
-                window.location.reload();
-            } else {
-                alert('Erro ao excluir arquivo: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Erro ao excluir arquivo: ' + error.message);
-            console.error('Erro:', error);
-        });
-    }
-    
-    // Eventos do modal de confirmação
-    cancelDeleteBtn.addEventListener('click', function() {
-        confirmModal.classList.remove('active');
-        currentFileToDelete = '';
-    });
-    
-    confirmDeleteBtn.addEventListener('click', function() {
-        if (currentFileToDelete) {
-            deleteFile(currentFileToDelete);
-            confirmModal.classList.remove('active');
-        }
-    });
-    
-    // Clicar fora do modal para fechar
-    confirmModal.addEventListener('click', function(e) {
-        if (e.target === confirmModal) {
-            confirmModal.classList.remove('active');
-            currentFileToDelete = '';
-        }
-    });
-    
-    // Processar arquivos selecionados para upload
-    function handleFiles(files) {
-        // Filtrar apenas arquivos JSON
-        const jsonFiles = Array.from(files).filter(file => file.name.endsWith('.json'));
+        # Criar CSS se não existir
+        if not css_exists:
+            with open(css_path, 'w', encoding='utf-8') as f:
+                # Aqui você pode incluir o código CSS ou simplesmente deixar em branco
+                f.write('/* Arquivo CSS criado pelo sistema - pode ser editado manualmente */')
+            print(f"Arquivo CSS criado: {css_path}")
         
-        if (jsonFiles.length === 0) {
-            alert('Por favor, selecione apenas arquivos JSON.');
-            return;
-        }
-        
-        // Adicionar à lista de arquivos selecionados
-        selectedFiles = [...selectedFiles, ...jsonFiles];
-        
-        // Atualizar a pré-visualização
-        updateFilePreview();
-    }
-    
-    // Atualizar a pré-visualização dos arquivos
-    function updateFilePreview() {
-        if (selectedFiles.length > 0) {
-            filePreview.innerHTML = '';
-            filePreview.classList.add('active');
-            
-            selectedFiles.forEach((file, index) => {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item-preview';
-                fileItem.innerHTML = `
-                    <div class="file-name">
-                        <i class="fas fa-file-code"></i>
-                        ${file.name} (${formatFileSize(file.size)})
-                    </div>
-                    <button type="button" class="file-remove" data-index="${index}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                filePreview.appendChild(fileItem);
-            });
-            
-            // Adicionar eventos para remover arquivos
-            document.querySelectorAll('.file-remove').forEach(button => {
-                button.addEventListener('click', function() {
-                    const index = parseInt(this.getAttribute('data-index'));
-                    selectedFiles.splice(index, 1);
-                    updateFilePreview();
-                });
-            });
-        } else {
-            filePreview.classList.remove('active');
-            filePreview.innerHTML = '';
-        }
-    }
-    
-    // Formatar tamanho do arquivo
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-    
-    // Limpar seleção de arquivos
-    clearButton.addEventListener('click', function() {
-        selectedFiles = [];
-        fileUpload.value = '';
-        updateFilePreview();
-    });
-    
-    // Evento para selecionar/desselecionar todos os arquivos
-    selectAllCheckbox.addEventListener('change', function() {
-        const isChecked = this.checked;
-        fileCheckboxes.forEach(checkbox => {
-            checkbox.checked = isChecked;
-        });
-    });
-    
-    // Evento para processar arquivos selecionados
-    processButton.addEventListener('click', function() {
-        const selectedFiles = Array.from(document.querySelectorAll('.file-checkbox:checked'))
-            .map(checkbox => checkbox.getAttribute('data-filename'));
-        
-        if (selectedFiles.length === 0) {
-            alert('Por favor, selecione pelo menos um arquivo para processar.');
-            return;
-        }
-        
-        // Mostrar indicador de processamento
-        processingIndicator.classList.remove('hidden');
-        resultsContainer.innerHTML = '';
-        
-        // Enviar requisição para processar os arquivos
-        fetch('/processar', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ arquivos: selectedFiles })
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Ocultar indicador de processamento
-            processingIndicator.classList.add('hidden');
-            
-            // Exibir resultados
-            if (data.resultados && data.resultados.length > 0) {
-                const resultadosHTML = data.resultados.map(resultado => {
-                    // Determinar a classe CSS com base no status
-                    let classeResultado = 'result-success';
-                    let badgeClass = 'badge-success';
-                    let iconClass = 'fas fa-check-circle';
-                    
-                    if (resultado.status === 'Erro') {
-                        classeResultado = 'result-error';
-                        badgeClass = 'badge-error';
-                        iconClass = 'fas fa-exclamation-circle';
-                    }
-                    
-                    // Renderizar mensagens específicas para tipos de erro
-                    let detalhesErro = '';
-                    if (resultado.tipo_erro === 'sem_dados') {
-                        detalhesErro = `
-                            <div class="error-details">
-                                <p><strong>Problema:</strong> O arquivo JSON não contém dados suficientes para gerar planilhas.</p>
-                                <p><strong>Solução:</strong> Verifique se o arquivo JSON contém blocos de texto válidos com pares chave-valor.</p>
-                            </div>
-                        `;
-                    } else if (resultado.tipo_erro === 'sem_blocos') {
-                        detalhesErro = `
-                            <div class="error-details">
-                                <p><strong>Problema:</strong> Não foram encontrados blocos de texto no arquivo.</p>
-                                <p><strong>Solução:</strong> O arquivo JSON parece estar vazio ou não contém o formato esperado.</p>
-                            </div>
-                        `;
-                    } else if (resultado.tipo_erro === 'json_invalido') {
-                        detalhesErro = `
-                            <div class="error-details">
-                                <p><strong>Problema:</strong> O arquivo JSON está em formato inválido.</p>
-                                <p><strong>Solução:</strong> Verifique a sintaxe do arquivo JSON ou gere-o novamente.</p>
-                            </div>
-                        `;
-                    } else if (resultado.tipo_erro === 'arquivo_nao_encontrado') {
-                        detalhesErro = `
-                            <div class="error-details">
-                                <p><strong>Problema:</strong> O arquivo não foi encontrado no servidor.</p>
-                                <p><strong>Solução:</strong> Verifique se o arquivo existe ou tente fazer upload novamente.</p>
-                            </div>
-                        `;
-                    }
-                    
-                    return `
-                        <div class="result-item ${classeResultado}">
-                            <div>
-                                <strong><i class="${iconClass}"></i> ${resultado.arquivo}</strong>
-                                <p>${resultado.mensagem}</p>
-                                ${detalhesErro}
-                            </div>
-                            <div>
-                                <span class="status-badge ${badgeClass}">${resultado.status}</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                
-                resultsContainer.innerHTML = resultadosHTML;
-            } else {
-                resultsContainer.innerHTML = '<p class="no-results">Nenhum resultado obtido.</p>';
-            }
-        })
-        .catch(error => {
-            processingIndicator.classList.add('hidden');
-            resultsContainer.innerHTML = `
-                <div class="result-item result-error">
-                    <div>
-                        <p><i class="fas fa-exclamation-triangle"></i> Erro ao processar arquivos: ${error.message}</p>
-                        <div class="error-details">
-                            <p>Ocorreu um erro na comunicação com o servidor. Por favor, tente novamente mais tarde.</p>
-                        </div>
-                    </div>
-                    <div>
-                        <span class="status-badge badge-error">Erro</span>
-                    </div>
-                </div>
-            `;
-            console.error('Erro:', error);
-        });
-    });
-    
-    // Evento para atualizar a lista de arquivos
-    refreshButton.addEventListener('click', function() {
-        window.location.reload();
-    });
-    
-    // Evento para upload de novos arquivos
-    uploadButton.addEventListener('click', function() {
-        if (selectedFiles.length === 0) {
-            alert('Por favor, selecione pelo menos um arquivo para upload.');
-            return;
-        }
-        
-        const formData = new FormData();
-        selectedFiles.forEach(file => {
-            formData.append('files[]', file);
-        });
-        
-        // Mostrar indicador de carregamento
-        uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-        uploadButton.disabled = true;
-        
-        fetch('/upload', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Resetar o formulário
-                selectedFiles = [];
-                fileUpload.value = '';
-                updateFilePreview();
-                
-                // Exibir mensagem de sucesso
-                alert('Arquivos enviados com sucesso!');
-                
-                // Recarregar a página para mostrar os novos arquivos
-                window.location.reload();
-            } else {
-                alert('Erro ao enviar arquivos: ' + data.message);
-                
-                // Restaurar o botão
-                uploadButton.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivos';
-                uploadButton.disabled = false;
-            }
-        })
-        .catch(error => {
-            alert('Erro ao enviar arquivos: ' + error.message);
-            console.error('Erro:', error);
-            
-            // Restaurar o botão
-            uploadButton.innerHTML = '<i class="fas fa-upload"></i> Enviar arquivos';
-            uploadButton.disabled = false;
-        });
-    });
-    
-    // ========== FUNCIONALIDADE DE PDF ==========
-    
-    // Interação com seleção de arquivo PDF
-    if (pdfSelectBtn) {
-        pdfSelectBtn.addEventListener('click', function() {
-            pdfFileUpload.click();
-        });
-    }
-    
-    if (pdfFileUpload) {
-        pdfFileUpload.addEventListener('change', function() {
-            if (this.files.length > 0) {
-                pdfFilename.textContent = this.files[0].name;
-            } else {
-                pdfFilename.textContent = 'Nenhum arquivo selecionado';
-            }
-        });
-    }
-    
-    // Processamento de PDF
-    if (pdfForm) {
-        pdfForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Validar se há arquivo selecionado
-            if (!pdfFileUpload.files.length) {
-                alert('Por favor, selecione um arquivo PDF para processar.');
-                return;
-            }
-            
-            // Configurar exibição
-            pdfProcessingIndicator.classList.remove('hidden');
-            pdfResults.classList.add('hidden');
-            jsonFilesFromPdf.classList.add('hidden');
-            
-            // Preparar FormData
-            const formData = new FormData();
-            formData.append('pdf_file', pdfFileUpload.files[0]);
-            
-            // Configurar a simulação de progresso (o processo real leva alguns minutos)
-            const progressBar = document.getElementById('pdf-progress-bar');
-            let progress = 0;
-            
-            const progressInterval = setInterval(() => {
-                progress += 1;
-                if (progress > 95) {
-                    clearInterval(progressInterval);
-                } else {
-                    progressBar.style.width = progress + '%';
-                }
-            }, 1000); // Atualiza a cada segundo
-            
-            // Enviar para processamento
-            fetch('/processar-pdf', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Limpar intervalo e completar a barra de progresso
-                clearInterval(progressInterval);
-                progressBar.style.width = '100%';
-                
-                // Após 0.5 segundo, exibir o resultado
-                setTimeout(() => {
-                    pdfProcessingIndicator.classList.add('hidden');
-                    pdfResults.classList.remove('hidden');
-                    
-                    // Exibir resultado do processamento
-                    if (data.sucesso) {
-                        // Exibir informações de sucesso
-                        pdfResults.innerHTML = `
-                            <div class="result-item result-success">
-                                <div>
-                                    <strong><i class="fas fa-check-circle"></i> ${data.nome_arquivo}</strong>
-                                    <p>${data.mensagem}</p>
-                                    <p>Tempo de processamento: ${(data.tempo_processamento / 60).toFixed(2)} minutos</p>
-                                </div>
-                                <div>
-                                    <span class="status-badge badge-success">Sucesso</span>
-                                </div>
-                            </div>
-                        `;
-                        
-                        // Se houver arquivos JSON gerados, mostrar opções para processá-los
-                        if (data.arquivos_json && data.arquivos_json.length > 0) {
-                            // Exibir o card de JSON files
-                            jsonFilesFromPdf.classList.remove('hidden');
-                            
-                            // Preencher a lista de arquivos JSON
-                            const jsonFilesHTML = data.arquivos_json.map(arquivo => {
-                                const nomeArquivo = arquivo.split('/').pop();
-                                return `
-                                    <div class="file-item">
-                                        <input type="radio" id="json-${nomeArquivo}" name="json_file" 
-                                               class="file-json-radio" value="${arquivo}">
-                                        <label for="json-${nomeArquivo}" class="file-label">
-                                            <i class="fas fa-file-code"></i> ${nomeArquivo}
-                                        </label>
-                                    </div>
-                                `;
-                            }).join('');
-                            
-                            pdfJsonFiles.innerHTML = jsonFilesHTML;
-                        }
-                    } else {
-                        // Exibir informações de erro
-                        pdfResults.innerHTML = `
-                            <div class="result-item result-error">
-                                <div>
-                                    <strong><i class="fas fa-exclamation-circle"></i> Erro no processamento</strong>
-                                    <p>${data.mensagem}</p>
-                                    ${data.detalhes ? `<div class="error-details"><pre>${data.detalhes}</pre></div>` : ''}
-                                </div>
-                                <div>
-                                    <span class="status-badge badge-error">Erro</span>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }, 500);
-            })
-            .catch(error => {
-                // Limpar intervalo
-                clearInterval(progressInterval);
-                
-                // Exibir erro
-                pdfProcessingIndicator.classList.add('hidden');
-                pdfResults.classList.remove('hidden');
-                pdfResults.innerHTML = `
-                    <div class="result-item result-error">
-                        <div>
-                            <strong><i class="fas fa-exclamation-triangle"></i> Erro de comunicação</strong>
-                            <p>Ocorreu um erro ao comunicar com o servidor: ${error.message}</p>
-                        </div>
-                        <div>
-                            <span class="status-badge badge-error">Erro</span>
-                        </div>
-                    </div>
-                `;
-                console.error('Erro:', error);
-            });
-        });
-    }
-    
-    // Processamento dos arquivos JSON gerados a partir do PDF
-    if (processPdfJsonBtn) {
-        processPdfJsonBtn.addEventListener('click', function() {
-            // Verificar se algum arquivo JSON foi selecionado
-            const selectedJsonFile = document.querySelector('input[name="json_file"]:checked');
-            
-            if (!selectedJsonFile) {
-                alert('Por favor, selecione um arquivo JSON para processar.');
-                return;
-            }
-            
-            const jsonFilePath = selectedJsonFile.value;
-            
-            // Mostrar indicador de processamento
-            processingIndicator.classList.remove('hidden');
-            resultsContainer.innerHTML = '';
-            
-            // Enviar requisição para processar o arquivo
-            fetch('/processar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ arquivos: [jsonFilePath] })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Alternar para a tab de JSON e mostrar os resultados
-                document.querySelector('.tab-btn[data-tab="json-tab"]').click();
-                
-                // Ocultar indicador de processamento
-                processingIndicator.classList.add('hidden');
-                
-                // Exibir resultados (usando o mesmo código que temos na função acima)
-                if (data.resultados && data.resultados.length > 0) {
-                    const resultadosHTML = data.resultados.map(resultado => {
-                        // Determinar a classe CSS com base no status
-                        let classeResultado = 'result-success';
-                        let badgeClass = 'badge-success';
-                        let iconClass = 'fas fa-check-circle';
-                        
-                        if (resultado.status === 'Erro') {
-                            classeResultado = 'result-error';
-                            badgeClass = 'badge-error';
-                            iconClass = 'fas fa-exclamation-circle';
-                        }
-                        
-                        // Renderizar mensagens específicas para tipos de erro
-                        let detalhesErro = '';
-                        if (resultado.tipo_erro === 'sem_dados') {
-                            detalhesErro = `
-                                <div class="error-details">
-                                    <p><strong>Problema:</strong> O arquivo JSON não contém dados suficientes para gerar planilhas.</p>
-                                    <p><strong>Solução:</strong> Verifique se o arquivo JSON contém blocos de texto válidos com pares chave-valor.</p>
-                                </div>
-                            `;
-                        } else if (resultado.tipo_erro === 'sem_blocos') {
-                            detalhesErro = `
-                                <div class="error-details">
-                                    <p><strong>Problema:</strong> Não foram encontrados blocos de texto no arquivo.</p>
-                                    <p><strong>Solução:</strong> O arquivo JSON parece estar vazio ou não contém o formato esperado.</p>
-                                </div>
-                            `;
-                        } else if (resultado.tipo_erro === 'json_invalido') {
-                            detalhesErro = `
-                                <div class="error-details">
-                                    <p><strong>Problema:</strong> O arquivo JSON está em formato inválido.</p>
-                                    <p><strong>Solução:</strong> Verifique a sintaxe do arquivo JSON ou gere-o novamente.</p>
-                                </div>
-                            `;
-                        } else if (resultado.tipo_erro === 'arquivo_nao_encontrado') {
-                            detalhesErro = `
-                                <div class="error-details">
-                                    <p><strong>Problema:</strong> O arquivo não foi encontrado no servidor.</p>
-                                    <p><strong>Solução:</strong> Verifique se o arquivo existe ou tente fazer upload novamente.</p>
-                                </div>
-                            `;
-                        }
-                        
-                        return `
-                            <div class="result-item ${classeResultado}">
-                                <div>
-                                    <strong><i class="${iconClass}"></i> ${resultado.arquivo}</strong>
-                                    <p>${resultado.mensagem}</p>
-                                    ${detalhesErro}
-                                </div>
-                                <div>
-                                    <span class="status-badge ${badgeClass}">${resultado.status}</span>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                    
-                    resultsContainer.innerHTML = resultadosHTML;
-                } else {
-                    resultsContainer.innerHTML = '<p class="no-results">Nenhum resultado obtido.</p>';
-                }
-            })
-            .catch(error => {
-                processingIndicator.classList.add('hidden');
-                resultsContainer.innerHTML = `
-                    <div class="result-item result-error">
-                        <div>
-                            <p><i class="fas fa-exclamation-triangle"></i> Erro ao processar arquivos: ${error.message}</p>
-                            <div class="error-details">
-                                <p>Ocorreu um erro na comunicação com o servidor. Por favor, tente novamente mais tarde.</p>
-                            </div>
-                        </div>
-                        <div>
-                            <span class="status-badge badge-error">Erro</span>
-                        </div>
-                    </div>
-                `;
-                console.error('Erro:', error);
-            });
-        });
-    }
-});''')
+        # Criar JS se não existir
+        if not js_exists:
+            with open(js_path, 'w', encoding='utf-8') as f:
+                # Aqui você pode incluir o código JavaScript ou simplesmente deixar em branco
+                f.write('/* Arquivo JavaScript criado pelo sistema - pode ser editado manualmente */')
+            print(f"Arquivo JS criado: {js_path}")
+    else:
+        print("Arquivos estáticos já existem, não será necessário recriá-los.")
 
 # Rota para upload de arquivos
 @app.route('/upload', methods=['POST'])

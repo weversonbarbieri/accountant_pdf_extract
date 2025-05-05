@@ -16,16 +16,16 @@
         
         <main>
             <div class="tabs">
-                <button class="tab-btn active" data-tab="json-tab">
+                <button class="tab-btn" data-tab="json-tab" id="json-tab-btn" style="display: none;">
                     <i class="fas fa-file-code"></i> Arquivos JSON
                 </button>
-                <button class="tab-btn" data-tab="pdf-tab">
+                <button class="tab-btn active" data-tab="pdf-tab">
                     <i class="fas fa-file-pdf"></i> Extrair texto de PDF
                 </button>
             </div>
             
             <!-- Tab de processamento JSON -->
-            <div id="json-tab" class="tab-content active">
+            <div id="json-tab" class="tab-content">
                 <div class="card">
                     <h2><i class="fas fa-file-upload"></i> Upload de arquivos</h2>
                     <div class="dropzone" id="drop-area">
@@ -103,7 +103,7 @@
             </div>
             
             <!-- Tab de processamento PDF -->
-            <div id="pdf-tab" class="tab-content">
+            <div id="pdf-tab" class="tab-content active">
                 <div class="card">
                     <h2><i class="fas fa-file-pdf"></i> Processamento de PDF com Amazon Textract</h2>
                     <div class="alert info">
@@ -111,29 +111,40 @@
                         <div>
                             <p>Este recurso utiliza o Amazon Textract para extrair texto e estrutura de documentos PDF.</p>
                             <p>É necessário ter as credenciais AWS configuradas.</p>
+                            <p><a href="/teste-pdf" target="_blank" style="color: #3498db; text-decoration: underline;">Abrir página de teste de seleção múltipla</a></p>
                         </div>
                     </div>
                     
+                    <p class="workflow-description">
+                        <strong>Fluxo de trabalho:</strong>
+                        <ol>
+                            <li>Selecione um ou mais arquivos PDF para processar</li>
+                            <li>O Amazon Textract extrairá o texto e a estrutura dos documentos</li>
+                            <li>Os resultados serão salvos como arquivos JSON</li>
+                            <li>Você poderá selecionar um dos arquivos JSON gerados para criar relatórios Excel/CSV</li>
+                        </ol>
+                    </p>
+                    
                     <form id="pdf-upload-form" enctype="multipart/form-data">
                         <div class="form-group">
-                            <label for="pdf-file-upload">Selecione um arquivo PDF:</label>
+                            <label for="pdf-file-upload">Selecione arquivos PDF:</label>
                             <div class="file-input-wrapper">
-                                <input type="file" id="pdf-file-upload" name="pdf_file" accept=".pdf">
+                                <input type="file" id="pdf-file-upload" name="pdf_files[]" accept=".pdf" multiple>
                                 <div class="file-input-placeholder" id="pdf-filename">Nenhum arquivo selecionado</div>
-                                <button type="button" class="btn secondary" id="pdf-select-btn">Selecionar PDF</button>
+                                <button type="button" class="btn secondary" id="pdf-select-btn">Selecionar PDFs</button>
                             </div>
                         </div>
                         
                         <div class="form-group">
                             <button type="submit" class="btn primary" id="pdf-process-btn">
-                                <i class="fas fa-cloud-upload-alt"></i> Processar PDF com Textract
+                                <i class="fas fa-cloud-upload-alt"></i> Processar PDFs com Textract
                             </button>
                         </div>
                     </form>
                     
                     <div id="pdf-processing-indicator" class="hidden">
                         <div class="spinner"></div>
-                        <p>Processando PDF com Amazon Textract, isso pode levar alguns minutos...</p>
+                        <p>Processando PDFs com Amazon Textract, isso pode levar alguns minutos...</p>
                         <div class="progress-bar-container">
                             <div class="progress-bar" id="pdf-progress-bar" style="width: 0%"></div>
                         </div>
